@@ -1,0 +1,68 @@
+{
+  "name": "APS / SIGNAL",
+  "version": "1.0",
+  "platform": "Native Android / Jetpack Compose; visual tokens retained from the approved SIGNAL prototype",
+  "color": {
+    "background": "#090D0B",
+    "surface": "#141A16",
+    "surfaceRaised": "#1C241E",
+    "border": "#2B362E",
+    "textPrimary": "#EFF5ED",
+    "textSecondary": "#A0AFA2",
+    "textTertiary": "#7D8D7F",
+    "accent": "#C1F76B",
+    "onAccent": "#17220B",
+    "secondarySignal": "#7ADECF",
+    "warning": "#EDBD79",
+    "error": "#FF978A"
+  },
+  "spacing": [
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    32
+  ],
+  "radius": {
+    "small": 8,
+    "control": 14,
+    "card": 20,
+    "sheet": 27,
+    "pill": 999
+  },
+  "type": {
+    "pageTitle": 29,
+    "sectionTitle": 14,
+    "bodyPrototype": 12,
+    "metadataPrototype": 10,
+    "ip": 26,
+    "portInput": 32,
+    "numericRate": 23,
+    "note": "Use dp/sp and test font scaling in native Android. No fonts are distributed."
+  },
+  "motion": {
+    "feedbackMs": 160,
+    "pageMs": 220,
+    "sheetMs": 240,
+    "orbitSeconds": 20,
+    "reducedMotion": true,
+    "note": "Timings are recommendations; not a device-performance guarantee."
+  },
+  "layout": {
+    "artboardWidth": 412,
+    "artboardHeight": 892,
+    "exportScale": 2,
+    "pageMargin": 20,
+    "nativeTouchTargetMinDp": 48
+  },
+  "scope": {
+    "simulatedData": false,
+    "realProxy": true,
+    "supportsAuthentication": false,
+    "supportsUDP": false,
+    "qr": "Standard text QR, not OS proxy auto-configuration",
+    "note": "Describes intended production implementation. Native compilation and device verification are pending."
+  }
+}

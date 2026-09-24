@@ -1,0 +1,21 @@
+{
+  "repository": "hect0x7/android-proxy-server",
+  "commit": "a785282cf172112590e992165090b4729d5f64dc",
+  "files": {
+    "proxycore/src/main/java/com/hect0x7/proxy/core/ProxyConfig.kt": "db88c83fa11007ff8e85af5ec5ff04521a5af200",
+    "proxycore/src/main/java/com/hect0x7/proxy/core/ProxyStats.kt": "a4af03e8be3e2ce31d3c9ac71a75fc7b8049548c",
+    "proxycore/src/main/java/com/hect0x7/proxy/core/ProxyServerController.kt": "f8797790d51cf3dd32cc9d101561737921ee78e4",
+    "proxycore/src/main/java/com/hect0x7/proxy/core/internal/StatsTracker.kt": "cd62dafd8038216e21ac710a3ad2958ffd679057",
+    "proxycore/src/main/java/com/hect0x7/proxy/core/internal/ConnectionLifecycleHandler.kt": "48590d04fc4cb738b5405922310e3a5e33e7b4b7",
+    "proxycore/src/main/java/com/hect0x7/proxy/core/internal/NettyAwait.kt": "ad6c9a8f27e7d3aa6093e9d6d7b302d7a5d4ea43",
+    "proxycore/src/main/java/com/hect0x7/proxy/core/internal/SelfConnectionGuard.kt": "0e29ea96ff43e38963dfe68ed0b133c339cd590f",
+    "proxycore/src/main/java/com/hect0x7/proxy/core/internal/TrafficAccountingHandler.kt": "59a508174ebfe7f2d109b8f930193730d886d542",
+    "proxycore/src/main/java/com/hect0x7/proxy/core/internal/RelayHandler.kt": "104b8e96ddb2b20e1d8448d996341c3e185558b3",
+    "proxycore/src/main/java/com/hect0x7/proxy/core/internal/http/HttpTarget.kt": "b8fa9ce3ecc0f271b401e3970e76cf88d6ff8327",
+    "proxycore/src/main/java/com/hect0x7/proxy/core/internal/http/HttpProxyInitializer.kt": "eaa2063312ef4f0d2bea192f4e5dd78aa7d63c8b",
+    "proxycore/src/main/java/com/hect0x7/proxy/core/internal/socks/Socks5ProxyInitializer.kt": "2931a0ec1687ff33d98e223c93ebf0b8ed22d957",
+    "proxycore/src/main/java/com/hect0x7/proxy/core/internal/ProxyRuntime.kt": "c8039f1b1f038c0d4018da7743c15806d719192b",
+    "proxycore/src/main/java/com/hect0x7/proxy/core/internal/http/HttpProxyHandler.kt": "b9ea71e84caed1c0662302cb8945e4df7bb57a91",
+    "proxycore/src/main/java/com/hect0x7/proxy/core/internal/socks/Socks5ProxyHandler.kt": "157247c2d3edbf35caac55d19f51fff4924e8c8a"
+  }
+}

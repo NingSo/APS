@@ -1,0 +1,11 @@
+Android Proxy Server
+Copyright 2026 hect0x7
+
+This product includes software developed by the Android Open Source Project,
+JetBrains, the Netty Project, the Kotlin Coroutines project, and SLF4J.
+Their respective licenses apply to those dependencies.
+
+APS / SIGNAL is a derivative application with a new Compose user interface,
+service orchestration and tests. The 15 upstream proxycore source files are
+unmodified; see upstream-lock.json for the source commit and Git blob hashes.
+The application also uses ZXing core under the Apache License, Version 2.0.

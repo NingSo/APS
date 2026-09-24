@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">APS</string>
+    <string name="service_channel">APS 代理服务</string>
+    <string name="service_title">APS · SIGNAL</string>
+    <string name="service_starting">正在校验本地监听…</string>
+    <string name="service_stop">停止代理</string>
+    <string name="service_running">本地监听就绪 · %1$s</string>
+</resources>
