@@ -24,13 +24,13 @@ The upstream aggregate error field is sampled, not a complete per-request audit 
 
 `source-check-report.json` records checks actually run in the delivery environment: core Git blob integrity, XML parsing, TOML aliases, resource references, reference colors, Python syntax and limited source scans for keys, unexpected production fixtures and literal addresses. Shell launchers and workflow YAML also underwent local syntax/structure checks.
 
-**None of those checks compile Kotlin.** Unit, integration and instrumentation tests are present as source, but no Gradle, Android compiler, emulator, real handset or end-to-end proxy test was run for this delivery. The environment did not have an Android SDK/dependency cache or working container DNS, and GitHub writes were refused with HTTP 403. Consequently no remote commit, CI success, native screenshot comparison or APK is claimed.
+**None of those checks compile Kotlin.** The original source handoff did not run Gradle, the Android compiler, an emulator, a real handset or an end-to-end proxy test. Source synchronization has since completed as commit `919f91c`, preserving the existing repository history. CI run `35960800320` passed the source checks, then failed during SDK setup while requesting the unavailable default `tools` package; compilation and tests were skipped. Both workflows now explicitly request `platform-tools`. Consult the subsequent Actions run before claiming a successful build. Native screenshot fidelity and real-device behavior remain unverified.
 
 The test suite covers model validation and state ownership, QR encode/decode consistency, byte-rate/window rules, configuration sharing, core parsing/counters, real local listener lifecycle and occupied ports, confirmation/editor interactions, native navigation, and fixture screenshot capture. The exact written method counts are in the source-check report, explicitly marked as not executed.
 
 ## Required acceptance before release
 
-1. Synchronize the local source to the intended repository only after the connection has write authorization; do not force-push over existing work.
+1. Source synchronization is complete. Preserve the existing repository history; do not force-push over subsequent work.
 2. Run `Android checks and debug APK` against that exact commit. Resolve any dependency, compiler, lint or test failures before claiming an APK build works.
 3. Run `Native UI tests and screenshots`. Review the 360dp/412dp outputs against the approved design, then test large text, TalkBack and keyboard/inset behavior. The screenshots are native test fixtures, not live-network proof.
 4. Install the debug APK on a real phone. From a different device on a trusted LAN, verify HTTP, HTTPS CONNECT and SOCKS5 TCP using an authorized destination. Do not use the phone itself as the client because the upstream self-loop guard intentionally rejects it.

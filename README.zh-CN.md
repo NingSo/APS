@@ -4,7 +4,7 @@
 
 按已确认的 SIGNAL 设计稿实现的原生 Android HTTP / SOCKS5 代理应用，使用 Jetpack Compose。**不是 WebView、不是 HTML 套壳，也不是 VPN 客户端。**
 
-**交付状态：源码实现版本，待 Android 编译、CI 和设备验收。当前不声称有成功构建或可安装 APK。** 向 `NingSo/APS` 的首次写入被当前 GitHub 连接以 HTTP 403 拒绝；源码包是本地交付，不代表已经推送成功。
+**交付状态：源码已同步到 `NingSo/APS` 的 `main` 分支。** 导入提交 `919f91c` 保留仓库原有历史，并与 72 文件源码包完全一致。首轮 CI 的源码检查通过，但 SDK 初始化因默认安装的 `tools` 包不可用而停止；工作流现已显式指定 `platform-tools`。构建结果请查看最新 Actions 运行。源码同步不代表 Android 编译、原生截图还原或真机验收已经通过。
 
 ## 界面与功能
 

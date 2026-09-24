@@ -4,7 +4,7 @@ English | [简体中文](README.zh-CN.md)
 
 A native Android HTTP / SOCKS5 proxy application implementing the approved SIGNAL design with Jetpack Compose. This is not a WebView, an HTML wrapper, or a VPN client.
 
-**Delivery status: source implementation, pending Android build and device verification. No successful CI run or installable APK is claimed in this delivery.** The initial write to `NingSo/APS` was denied by the connected GitHub integration (HTTP 403); this source bundle is the local handoff, not evidence of a successful push.
+**Delivery status: source synchronized to `NingSo/APS` (`main`).** Import commit `919f91c` preserves the original repository history and exactly matches the 72-file source bundle. The first CI run passed source checks but stopped during SDK setup because the default `tools` package was unavailable; the workflows now explicitly request `platform-tools`. Check the latest Actions run for build results. Android compilation, native screenshot fidelity and real-device verification are not established by the source import.
 
 ## Interface and behavior
 
