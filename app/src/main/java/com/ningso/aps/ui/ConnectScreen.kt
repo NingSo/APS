@@ -51,10 +51,10 @@ internal fun ChoiceRow(labels: List<String>, selected: Int, onSelect: (Int) -> U
 internal fun ConnectScreen(
     settings: ProxySettings, runtime: RuntimeSnapshot, host: String?, addresses: List<String>,
     onAddress: (String) -> Unit, onCopy: (String) -> Unit, onShare: (Protocol) -> Unit,
-    onDiagnostics: () -> Unit, onEdit: (Protocol) -> Unit,
+    onDiagnostics: () -> Unit, onEdit: (Protocol) -> Unit, onOverview: () -> Unit = {}, initialClient: Int = 0,
 ) {
     var protocol by rememberSaveable { mutableStateOf(Protocol.HTTP) }
-    var client by rememberSaveable { mutableIntStateOf(0) }
+    var client by rememberSaveable(initialClient) { mutableIntStateOf(initialClient) }
     var addressMenu by remember { mutableStateOf(false) }
     val active = runtime.listening(protocol, settings)
     val selected = settings.enabled(protocol)
@@ -64,9 +64,18 @@ internal fun ConnectScreen(
         PageHeading("MAKE THE CONNECTION", "下一台，连接。", "让客户端与手机处于同一可信局域网。") {
             SignalIcon(Glyph.LINK, Modifier.size(24.dp))
         }
-        ChoiceRow(Protocol.entries.map { it.title + if (runtime.listening(it, settings)) " ●" else "" }, protocol.ordinal,
-            { protocol = Protocol.entries[it] })
-        if (host != null && payload != null) {
+        if (host == null) {
+            SignalCard {
+                SignalIcon(Glyph.LINK, Modifier.size(24.dp), Signal.Warning)
+                Text("连接可信 Wi‑Fi 或开启手机热点后再继续", fontSize = 21.sp)
+                Text("本应用不会自动创建热点。发现 Wi‑Fi 或热点地址后，才能生成对应的连接配置。",
+                    color = Signal.Secondary, fontSize = 12.sp, lineHeight = 21.sp)
+                SecondaryAction("返回概览", Glyph.BACK, onOverview, Modifier.fillMaxWidth())
+            }
+        } else {
+            ChoiceRow(Protocol.entries.map { it.title + if (runtime.listening(it, settings)) "  ● ON" else "  ○ OFF" }, protocol.ordinal,
+                { protocol = Protocol.entries[it] })
+            if (payload != null) {
             Surface(color = Signal.Accent, contentColor = Signal.OnAccent, shape = RoundedCornerShape(22.dp)) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -74,7 +83,8 @@ internal fun ConnectScreen(
                             Eyebrow("CONNECTION PASS", color = Signal.OnAccent.copy(alpha = .6f))
                             Text("${protocol.title} / TCP", fontFamily = Signal.Mono, fontSize = 22.sp)
                         }
-                        SignalIcon(Glyph.GLOBE, Modifier.size(24.dp), Signal.OnAccent)
+                        SignalIcon(if (protocol == Protocol.HTTP) Glyph.GLOBE else Glyph.TERMINAL,
+                            Modifier.size(24.dp), Signal.OnAccent)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -103,13 +113,7 @@ internal fun ConnectScreen(
                     }
                 }
             }
-        } else {
-            SignalCard {
-                Text("还没有局域网地址", fontSize = 21.sp)
-                Text("接入可信网络后，连接卡与二维码会根据实际地址生成。", color = Signal.Secondary)
-                SecondaryAction("检查网络", Glyph.ACTIVITY, onDiagnostics, Modifier.fillMaxWidth())
             }
-        }
         if (addresses.size > 1) {
             Box {
                 TextButton(onClick = { addressMenu = true }, Modifier.heightIn(min = 48.dp)) {
@@ -134,7 +138,7 @@ internal fun ConnectScreen(
                 Eyebrow("3 STEPS")
             }
             ChoiceRow(listOf("Windows", "macOS", "Android", "命令行"), client, { client = it }, compact = true)
-            val address = host ?: "手机显示的局域网 IP"
+            val address = host
             val port = settings.port(protocol)
             val steps = when {
                 client == 3 -> listOf("先确认客户端可以访问手机的局域网地址。", "执行下方命令；Windows PowerShell 请将 curl 改为 curl.exe。", "检查响应；命令需要在另一台客户端执行，不能在代理手机上执行。")
@@ -149,7 +153,7 @@ internal fun ConnectScreen(
                     Text(text, color = Signal.Secondary, fontSize = 12.sp, lineHeight = 21.sp)
                 }
             }
-            if (client == 3 && host != null) {
+            if (client == 3) {
                 val command = curlCommand(host, settings, protocol)
                 Surface(color = Signal.Background, shape = RoundedCornerShape(10.dp)) {
                     Column(Modifier.padding(12.dp)) {
@@ -161,6 +165,7 @@ internal fun ConnectScreen(
         }
         Text("二维码只包含配置文本，不会自动设置系统代理。无身份鉴权，请勿将端口直接暴露到互联网。",
             color = Signal.Secondary, fontSize = 11.sp, lineHeight = 19.sp)
-        Spacer(Modifier.height(15.dp))
+            Spacer(Modifier.height(15.dp))
+        }
     }
 }

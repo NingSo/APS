@@ -30,43 +30,54 @@ internal fun ActivityScreen(runtime: RuntimeSnapshot, onExport: () -> Unit) {
                 SignalIcon(Glyph.ACTIVITY, Modifier.size(24.dp))
             }
         }
-        item {
-            SignalCard {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("传输速率", fontSize = 14.sp)
-                    Eyebrow(if (runtime.running) "60s / LIVE" else "WAITING")
-                }
-                Row {
-                    SmallMetric("●  接收", runtime.receiveBytesPerSecond, Modifier.weight(1f), true, Signal.Accent)
-                    SmallMetric("●  发送", runtime.sendBytesPerSecond, Modifier.weight(1f), true, Signal.Mint)
-                }
-                Box(Modifier.fillMaxWidth().height(115.dp), contentAlignment = Alignment.Center) {
-                    TrafficPlot(runtime.samples, Modifier.fillMaxSize())
-                    if (runtime.samples.isEmpty()) Text("启动代理后显示真实流量", fontSize = 11.sp, color = Signal.Secondary)
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Eyebrow("−60s", color = Signal.Muted)
-                    Text("自适应刻度", fontSize = 9.sp, color = Signal.Muted)
-                    Eyebrow("现在", color = Signal.Muted)
+        if (runtime.running) {
+            item {
+                SignalCard {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("传输速率", fontSize = 14.sp)
+                        Eyebrow("60s / LIVE")
+                    }
+                    Row {
+                        SmallMetric("●  接收", runtime.receiveBytesPerSecond, Modifier.weight(1f), true, Signal.Accent)
+                        SmallMetric("●  发送", runtime.sendBytesPerSecond, Modifier.weight(1f), true, Signal.Mint)
+                    }
+                    Box(Modifier.fillMaxWidth().height(115.dp), contentAlignment = Alignment.Center) {
+                        TrafficPlot(runtime.samples, Modifier.fillMaxSize())
+                        if (runtime.samples.isEmpty()) Text("启动代理后显示真实流量", fontSize = 11.sp, color = Signal.Secondary)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Eyebrow("−60s", color = Signal.Muted)
+                        Text("自适应刻度", fontSize = 9.sp, color = Signal.Muted)
+                        Eyebrow("现在", color = Signal.Muted)
+                    }
                 }
             }
-        }
-        item {
-            SignalCard {
-                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    SmallMetric("本次累计接收", runtime.bytesReceived, Modifier.weight(1f))
-                    SmallMetric("本次累计发送", runtime.bytesSent, Modifier.weight(1f))
+            item {
+                SignalCard {
+                    Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                        SmallMetric("本次累计接收", runtime.bytesReceived, Modifier.weight(1f))
+                        SmallMetric("本次累计发送", runtime.bytesSent, Modifier.weight(1f))
+                    }
+                    HorizontalDivider(color = Signal.Border)
+                    Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("活动连接 · 不是设备数", fontSize = 10.sp, color = Signal.Secondary)
+                            Text("${runtime.activeConnections} 条", fontFamily = Signal.Mono, fontSize = 22.sp)
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("会话累计连接", fontSize = 10.sp, color = Signal.Secondary)
+                            Text("${runtime.totalConnections} 次", fontFamily = Signal.Mono, fontSize = 22.sp)
+                        }
+                    }
                 }
-                HorizontalDivider(color = Signal.Border)
-                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("活动连接 · 不是设备数", fontSize = 10.sp, color = Signal.Secondary)
-                        Text("${runtime.activeConnections} 条", fontFamily = Signal.Mono, fontSize = 22.sp)
-                    }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("会话累计连接", fontSize = 10.sp, color = Signal.Secondary)
-                        Text("${runtime.totalConnections} 次", fontFamily = Signal.Mono, fontSize = 22.sp)
-                    }
+            }
+        } else {
+            item {
+                SignalCard {
+                    SignalIcon(Glyph.ACTIVITY, Modifier.size(22.dp), Signal.Secondary)
+                    Text("等待真实会话", fontSize = 18.sp)
+                    Text("启动代理后，这里会显示当前会话的速率、曲线和连接统计。",
+                        color = Signal.Secondary, fontSize = 12.sp, lineHeight = 21.sp)
                 }
             }
         }

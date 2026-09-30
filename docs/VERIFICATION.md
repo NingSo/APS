@@ -33,8 +33,10 @@ The test suite covers model validation and state ownership, QR encode/decode con
 1. Source synchronization is complete. Preserve the existing repository history; do not force-push over subsequent work.
 2. Run `Android checks and debug APK` against that exact commit. Resolve any dependency, compiler, lint or test failures before claiming an APK build works.
 3. Run `Native UI tests and screenshots`. Review the 360dp/412dp outputs against the approved design, then test large text, TalkBack and keyboard/inset behavior. The screenshots are native test fixtures, not live-network proof.
-4. Install the debug APK on a real phone. From a different device on a trusted LAN, verify HTTP, HTTPS CONNECT and SOCKS5 TCP using an authorized destination. Do not use the phone itself as the client because the upstream self-loop guard intentionally rejects it.
+4. Install the debug APK on a real phone. From a different device connected through trusted Wi-Fi or the phone's hotspot, verify HTTP, HTTPS CONNECT and SOCKS5 TCP using an authorized destination. Do not use the phone itself as the client because the upstream self-loop guard intentionally rejects it.
 5. Verify edit/restart interruption, both protocols off, occupied ports, losing/changing network, notification denial, service stop, process death and repeated start/stop. Confirm exported data is user-controlled.
 6. Check real lock-screen/OEM power behavior and operation alongside the user's VPN configuration. These cannot be guaranteed by listener self-tests or emulators.
+
+The iOS target has a separate simulator build and protocol-model test path. Its foreground `Network.framework` listener is not evidence of lock-screen persistence or real iPhone Wi-Fi/Personal Hotspot reachability; those require a signed device build and a second client on the same network.
 
 Release signing, a release tag and public release publication are separate, unperformed actions. The source intentionally does not contain a keystore or copied credentials.

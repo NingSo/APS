@@ -22,7 +22,7 @@ Stopping explicitly clears the in-memory session, not protocol preferences. Reco
 
 HTTP defaults to 8080; SOCKS5 defaults to 1080. The server listens on all local interfaces without authentication. Use only on a trusted LAN and never forward its ports to the public internet. HTTP supports HTTPS `CONNECT`; SOCKS5 supports TCP `CONNECT` only, not UDP or BIND. HTTPS tunneling does not mean all proxy traffic is encrypted.
 
-The app does not create an Android `VpnService`, hotspot or device inventory. Outbound connections follow the platform's routing behavior; another VPN's application exclusions can affect the result. Connection counts are not device counts. There are no accounts, advertisements, telemetry or automatic uploads. Exported logs can contain network details and remain in the user-selected destination after a session stops.
+The app does not create an Android `VpnService`, hotspot or device inventory. It can serve clients connected through trusted Wi-Fi or the phone's own hotspot while outbound connections follow the platform's routing behavior; another VPN's application exclusions can affect the result. Connection counts are not device counts. There are no accounts, advertisements, telemetry or automatic uploads. Exported logs can contain network details and remain in the user-selected destination after a session stops.
 
 ## Source and build
 

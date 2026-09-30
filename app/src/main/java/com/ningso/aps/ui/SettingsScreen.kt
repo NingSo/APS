@@ -17,7 +17,8 @@ import com.ningso.aps.model.*
 @Composable
 internal fun SettingsScreen(settings: ProxySettings, system: SystemStatus,
     onEdit: (Protocol) -> Unit, onBackground: () -> Unit, onSystemSettings: () -> Unit,
-    onReduceMotion: (Boolean) -> Unit, onDiagnostics: () -> Unit, onRoute: () -> Unit, onAbout: () -> Unit) {
+    onReduceMotion: (Boolean) -> Unit, onDiagnostics: () -> Unit, onRoute: () -> Unit, onAbout: () -> Unit,
+    onRisk: () -> Unit = {}, onTheme: () -> Unit = {}) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(17.dp)) {
         PageHeading("FINE-TUNE YOUR SIGNAL", "少一点干扰。", "只保留与你的连接有关的设置。")
@@ -47,15 +48,15 @@ internal fun SettingsScreen(settings: ProxySettings, system: SystemStatus,
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("减少动态效果", fontSize = 14.sp)
-                    Text(if (system.motionDisabled) "系统已关闭动画" else "停止信号轨道循环动画", fontSize = 11.sp, color = Signal.Secondary)
+                    Text("停止信号轨道循环动画", fontSize = 11.sp, color = Signal.Secondary)
                 }
                 Switch(settings.reducedMotion, onReduceMotion)
             }
             HorizontalDivider(color = Signal.Border)
-            Text("SIGNAL / 夜航", fontFamily = Signal.Mono, color = Signal.Accent, fontSize = 14.sp)
+            Text("SIGNAL / 夜航", Modifier.clickable(onClick = onTheme), fontFamily = Signal.Mono, color = Signal.Accent, fontSize = 14.sp)
             Text("黑曜石 × 荧光绿 · 跟随系统字体缩放", color = Signal.Secondary, fontSize = 11.sp)
         }
-        SignalCard {
+        SignalCard(Modifier.clickable(onClick = onRisk)) {
             Text("你的连接，留在你的设备。", fontSize = 17.sp)
             Text("没有账号、广告、遥测或云端历史。配置保存在应用私有存储；会话数据仅保存在内存。复制、分享和导出由你主动发起。",
                 color = Signal.Secondary, fontSize = 12.sp, lineHeight = 21.sp)
@@ -80,13 +81,14 @@ private fun SettingsRow(title: String, subtitle: String, glyph: Glyph, onClick: 
 
 @Composable
 internal fun DiagnosticsScreen(runtime: RuntimeSnapshot, host: String?, system: SystemStatus,
-    onRefresh: () -> Unit, onBackground: () -> Unit) {
+    onRefresh: () -> Unit, onBackground: () -> Unit, onCommand: () -> Unit = {}) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         PageHeading("FOLLOW THE CONNECTION", "找到连接的断点。", "先检查手机本地，再验证客户端与目标。")
-        SecondaryAction("刷新本机状态", Glyph.ACTIVITY, onRefresh, Modifier.fillMaxWidth())
+        SecondaryAction("重新检查本机状态", Glyph.ACTIVITY, onRefresh, Modifier.fillMaxWidth())
         DiagnosticStep("01", "局域网地址", if (host == null) "未发现" else "已发现",
-            host?.let { "$it\n这是本机地址，不保证客户端可以访问。" } ?: "确认手机已接入可信局域网，避免访客网络或 AP 隔离。",
+            host?.let { "$it\n这是本机可分享地址，不保证所有客户端网络都能访问。" }
+                ?: "确认手机已接入可信 Wi‑Fi，或已开启个人热点；避免访客网络或 AP 隔离。",
             if (host == null) Signal.Warning else Signal.Accent)
         DiagnosticStep("02", "本地监听", if (runtime.running) "启动自检通过" else if (runtime.phase == SessionPhase.FAILED) "启动失败" else "尚未监听",
             if (runtime.running) "已启用的监听器完成本地接受连接自检。这不是外网连通性测试。"
@@ -100,6 +102,7 @@ internal fun DiagnosticsScreen(runtime: RuntimeSnapshot, host: String?, system: 
             "保持前台服务通知，并允许忽略电池优化；部分设备还需要允许后台活动或自启动。实际稳定性需要锁屏测试。",
             if (system.batteryUnrestricted && system.notificationsAllowed) Signal.Accent else Signal.Warning)
         SecondaryAction("检查后台运行设置", Glyph.POWER, onBackground, Modifier.fillMaxWidth())
+        SecondaryAction("获取客户端测试命令", Glyph.TERMINAL, onCommand, Modifier.fillMaxWidth())
         Text("HTTP / HTTPS CONNECT 与 SOCKS5 TCP CONNECT 不可混用端口。当前不支持用户名密码、UDP ASSOCIATE 或 BIND。",
             fontSize = 11.sp, lineHeight = 19.sp, color = Signal.Secondary)
         Spacer(Modifier.height(12.dp))

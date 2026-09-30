@@ -2,7 +2,7 @@
   "result": "passed",
   "scope": "Offline source, XML/TOML/resource/provenance checks only; NOT compilation, unit-test execution, or native UI verification.",
   "upstream_files_verified": 15,
-  "xml_files_parsed": 6,
+  "xml_files_parsed": 7,
   "production_app_kotlin_files": 16,
   "unit_test_methods_written": 42,
   "android_test_methods_written": 13,

@@ -9,7 +9,12 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -61,7 +66,8 @@ fun ApsApp(viewModel: ProxyViewModel) {
     var editing by rememberSaveable { mutableStateOf<Protocol?>(null) }
     var sharing by rememberSaveable { mutableStateOf<Protocol?>(null) }
     var information by rememberSaveable { mutableStateOf<InfoKind?>(null) }
-    val reduced = settings.reducedMotion || system.motionDisabled
+    var connectClient by rememberSaveable { mutableIntStateOf(0) }
+    val reduced = settings.reducedMotion
 
     fun goMain(target: Page) { page = target; mainPage = target }
     fun back() { page = if (page == Page.DIAGNOSTICS) diagnosticParent else mainPage }
@@ -140,7 +146,12 @@ fun ApsApp(viewModel: ProxyViewModel) {
             },
             snackbarHost = { SnackbarHost(snackbar) },
         ) { padding ->
-            Crossfade(page, Modifier.fillMaxSize().padding(padding), animationSpec = tween(if (reduced) 0 else 220), label = "page") { current ->
+            AnimatedContent(page, Modifier.fillMaxSize().padding(padding),
+                transitionSpec = {
+                    if (reduced) fadeIn(tween(0)) togetherWith fadeOut(tween(0))
+                    else (fadeIn(tween(230)) + slideInVertically(tween(230)) { it / 18 }) togetherWith
+                        (fadeOut(tween(180)) + slideOutVertically(tween(180)) { -it / 24 })
+                }, label = "page") { current ->
                 savedPages.SaveableStateProvider(current.name) {
                     when (current) {
                         Page.OVERVIEW -> OverviewScreen(settings, runtime, host,
@@ -150,6 +161,7 @@ fun ApsApp(viewModel: ProxyViewModel) {
                                 when {
                                     runtime.running -> stopping = true
                                     runtime.busy -> Unit
+                                    runtime.phase == SessionPhase.FAILED -> editing = Protocol.HTTP
                                     host == null -> diagnostic()
                                     !settings.hasProtocol -> { page = Page.SETTINGS; viewModel.note("请先选用至少一种协议") }
                                     else -> consent = true
@@ -158,17 +170,20 @@ fun ApsApp(viewModel: ProxyViewModel) {
                             onCopy = { host?.let(::copy) }, onConnect = { goMain(Page.CONNECT) },
                             onEdit = { editing = it }, onRisk = { information = InfoKind.RISK }, onDiagnostics = { diagnostic() })
                         Page.CONNECT -> ConnectScreen(settings, runtime, host, addresses, viewModel::selectAddress,
-                            onCopy = ::copy, onShare = { sharing = it }, onDiagnostics = { diagnostic() }, onEdit = { editing = it })
+                            onCopy = ::copy, onShare = { sharing = it }, onDiagnostics = { diagnostic() },
+                            onEdit = { editing = it }, onOverview = { goMain(Page.OVERVIEW) }, initialClient = connectClient)
                         Page.ACTIVITY -> ActivityScreen(runtime) { information = InfoKind.EXPORT }
                         Page.SETTINGS -> SettingsScreen(settings, system,
                             onEdit = { editing = it }, onBackground = ::background,
                             onSystemSettings = { runCatching { context.startActivity(viewModel.applicationSettingsIntent()) }
                                 .onFailure { viewModel.note("请从系统应用列表打开 APS 设置") } },
                             onReduceMotion = viewModel::setReducedMotion, onDiagnostics = { diagnostic() },
-                            onRoute = { information = InfoKind.ROUTE }, onAbout = { information = InfoKind.ABOUT })
+                            onRoute = { information = InfoKind.ROUTE }, onAbout = { information = InfoKind.ABOUT },
+                            onRisk = { information = InfoKind.RISK }, onTheme = { information = InfoKind.THEME })
                         Page.DIAGNOSTICS -> DiagnosticsScreen(runtime, host, system,
                             onRefresh = { viewModel.refreshSystem(); viewModel.note("已请求刷新本机状态；客户端和外网仍需另行验证") },
-                            onBackground = ::background)
+                            onBackground = ::background,
+                            onCommand = { connectClient = 3; goMain(Page.CONNECT) })
                     }
                 }
             }
@@ -182,9 +197,10 @@ fun ApsApp(viewModel: ProxyViewModel) {
         else { consentAddress = null; viewModel.start() }
     }
     if (stopping) StopSheet(runtime, { stopping = false }) { stopping = false; viewModel.stop() }
-    editing?.let { protocol -> PortSheet(protocol, settings, runtime, { editing = null }) { port, enabled ->
+    editing?.let { protocol -> PortSheet(protocol, settings, runtime, { editing = null }, { port, enabled ->
         viewModel.saveProtocol(protocol, port, enabled); editing = null
-    } }
+        if (runtime.phase == SessionPhase.FAILED) viewModel.start()
+    }, host = host) }
     sharing?.let { protocol -> host?.let { address ->
         ShareSheet(address, settings, protocol, { sharing = null }, ::copy) { text ->
             runCatching { context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {

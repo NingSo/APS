@@ -28,7 +28,13 @@ private fun SignalSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.
         containerColor = Signal.Surface, contentColor = Signal.Text,
         shape = RoundedCornerShape(topStart = 27.dp, topEnd = 27.dp)) {
         Column(Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp)
-            .padding(bottom = 25.dp), verticalArrangement = Arrangement.spacedBy(17.dp), content = content)
+            .padding(bottom = 25.dp), verticalArrangement = Arrangement.spacedBy(17.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.weight(1f))
+                IconControl(Glyph.CLOSE, "关闭弹窗", onDismiss, Modifier.testTag("close-sheet"), Signal.Secondary)
+            }
+            content()
+        }
     }
 }
 
@@ -64,7 +70,7 @@ internal fun StopSheet(runtime: RuntimeSnapshot, onDismiss: () -> Unit, onStop: 
 
 @Composable
 internal fun PortSheet(protocol: Protocol, settings: ProxySettings, runtime: RuntimeSnapshot,
-    onDismiss: () -> Unit, onSave: (Int, Boolean) -> Unit) {
+    onDismiss: () -> Unit, onSave: (Int, Boolean) -> Unit, host: String? = null) {
     var port by rememberSaveable(protocol) { mutableStateOf(settings.port(protocol).toString()) }
     var enabled by rememberSaveable(protocol) { mutableStateOf(settings.enabled(protocol)) }
     val other = settings.port(if (protocol == Protocol.HTTP) Protocol.SOCKS5 else Protocol.HTTP)
@@ -75,6 +81,12 @@ internal fun PortSheet(protocol: Protocol, settings: ProxySettings, runtime: Run
         Text("${protocol.title} 监听配置", fontSize = 25.sp)
         Text(if (protocol == Protocol.HTTP) "HTTP 转发与 HTTPS CONNECT 隧道。" else "SOCKS5 TCP CONNECT；不支持 UDP 或 BIND。",
             fontSize = 12.sp, color = Signal.Secondary, lineHeight = 21.sp)
+        SignalCard(color = Signal.Background) {
+            Text("监听地址", fontSize = 11.sp, color = Signal.Secondary)
+            Text("0.0.0.0:${settings.port(protocol)}", fontFamily = Signal.Mono, fontSize = 18.sp)
+            Text("客户端填写手机的局域网地址${host?.let { "（当前 $it）" } ?: "，不是 0.0.0.0"}。",
+                fontSize = 11.sp, color = Signal.Secondary, lineHeight = 18.sp)
+        }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("选用此协议", Modifier.weight(1f), fontSize = 14.sp)
             Switch(enabled, { enabled = it }, Modifier.testTag("protocol-enabled"))
@@ -85,6 +97,14 @@ internal fun PortSheet(protocol: Protocol, settings: ProxySettings, runtime: Run
             singleLine = true, isError = problem != null,
             supportingText = { Text(problem ?: "范围 1–65535；两个协议必须使用不同端口", fontSize = 11.sp) },
             shape = RoundedCornerShape(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { port = if (protocol == Protocol.HTTP) "8080" else "1080" }) {
+                Text("默认 ${if (protocol == Protocol.HTTP) 8080 else 1080}", fontSize = 11.sp)
+            }
+            TextButton(onClick = { port = if (protocol == Protocol.HTTP) "8888" else "1081" }) {
+                Text(if (protocol == Protocol.HTTP) "8888" else "1081", fontSize = 11.sp)
+            }
+        }
         if ((port.toIntOrNull() ?: 65535) in 1..1023) {
             Text("低位端口可能受到系统限制；格式有效不代表能够成功绑定。", color = Signal.Warning, fontSize = 12.sp)
         }
@@ -92,7 +112,11 @@ internal fun PortSheet(protocol: Protocol, settings: ProxySettings, runtime: Run
             Text("保存会重建整个代理服务，${runtime.activeConnections} 条现有连接可能中断，统计从零开始。若两个协议都关闭，则停止服务。",
                 color = Signal.Warning, fontSize = 12.sp, lineHeight = 21.sp)
         }
-        PrimaryAction(if (runtime.running) "保存并重建服务" else "保存配置",
+        PrimaryAction(when {
+            runtime.running -> "保存并重建服务"
+            runtime.phase == SessionPhase.FAILED -> "保存并重试"
+            else -> "保存配置"
+        },
             { port.toIntOrNull()?.let { onSave(it, enabled) } }, Modifier.testTag("save-port"),
             enabled = problem == null && changed && !runtime.busy)
         TextButton(onClick = onDismiss, Modifier.fillMaxWidth()) { Text("取消", color = Signal.Secondary) }
@@ -116,7 +140,7 @@ internal fun ShareSheet(host: String, settings: ProxySettings, protocol: Protoco
     }
 }
 
-internal enum class InfoKind { RISK, ROUTE, ABOUT, EXPORT }
+internal enum class InfoKind { RISK, ROUTE, ABOUT, EXPORT, THEME }
 
 @Composable
 internal fun InfoSheet(kind: InfoKind, onDismiss: () -> Unit, onExport: () -> Unit) {
@@ -128,12 +152,14 @@ internal fun InfoSheet(kind: InfoKind, onDismiss: () -> Unit, onExport: () -> Un
             InfoKind.ROUTE -> "出站，跟随系统。"
             InfoKind.ABOUT -> "更少干扰，更多连接。"
             InfoKind.EXPORT -> "导出这次会话？"
+            InfoKind.THEME -> "SIGNAL / 夜航"
         }, fontSize = 25.sp)
         val text = when (kind) {
             InfoKind.RISK -> "这是局域网代理服务器，不是 VPN 客户端。服务监听所有本地接口且不提供用户名密码认证。HTTPS CONNECT 不等于所有代理流量都加密。请只在可信局域网运行，不要将监听端口映射到公网。停止服务可关闭现有转发连接。"
             InfoKind.ROUTE -> "APS 不创建 VpnService 或占用 VPN 槽位。出站连接遵循 Android 当前默认路由；其他 VPN 的按应用分流等策略可能影响结果。本应用不显示未经验证的 VPN 名称、出口地址或访问目标的连通性。改变 VPN 状态后，可停止并重新启动代理验证。"
             InfoKind.ABOUT -> "APS / SIGNAL\n基于 hect0x7 的 Android Proxy Server，采用 Apache License 2.0。代理内核保留上游实现，界面与服务交互按 SIGNAL 设计重建。\n\n没有账号、广告、遥测或自动上传。以下为随安装包附带的开源声明与许可证。"
             InfoKind.EXPORT -> "日志可能包含网络地址及错误细节。导出前请确认内容；导出文件由你选择保存位置，停止服务不会删除已经导出的副本。此操作不会上传到应用服务器。"
+            InfoKind.THEME -> "黑曜石背景、信号绿主操作、薄荷色发送速率。警告使用琥珀色，失败使用珊瑚色。跟随系统字体缩放，当前交付聚焦深色方案。"
         }
         Text(text, color = Signal.Secondary, fontSize = 13.sp, lineHeight = 23.sp)
         if (kind == InfoKind.ABOUT) {

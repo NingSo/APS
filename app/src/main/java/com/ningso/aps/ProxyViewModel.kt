@@ -81,16 +81,14 @@ class ProxyViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun refreshAddresses() {
-        viewModelScope.launch {
-            addressJob?.cancel()
-            addressJob = viewModelScope.launch {
-                val next = withContext(Dispatchers.IO) { localIpv4Addresses() }
-                val previous = mutableSelected.value
-                mutableAddresses.value = next
-                if (previous !in next) mutableSelected.value = next.firstOrNull()
-                if (previous != null && previous != mutableSelected.value) {
-                    note("局域网地址已改变，请更新客户端配置并重新确认网络可信")
-                }
+        addressJob?.cancel()
+        addressJob = viewModelScope.launch {
+            val next = withContext(Dispatchers.IO) { connectedIpv4Addresses(connectivity) }
+            val previous = mutableSelected.value
+            mutableAddresses.value = next
+            if (previous !in next) mutableSelected.value = next.firstOrNull()
+            if (previous != null && previous != mutableSelected.value) {
+                note("局域网地址已改变，请更新客户端配置并重新确认网络可信")
             }
         }
     }
@@ -174,16 +172,36 @@ class ProxyViewModel(application: Application) : AndroidViewModel(application) {
     }
 }
 
-private fun localIpv4Addresses(): List<String> = runCatching {
-    Collections.list(NetworkInterface.getNetworkInterfaces()).asSequence()
-        .filter { network ->
-            network.isUp && !network.isLoopback &&
-                listOf("tun", "tap", "p2p", "rmnet").none(network.name.lowercase()::contains)
-        }
-        .flatMap { Collections.list(it.inetAddresses).asSequence() }
-        .filterIsInstance<Inet4Address>()
-        .filterNot { it.isLoopbackAddress || it.isLinkLocalAddress || it.isAnyLocalAddress }
-        .mapNotNull { it.hostAddress }
+private fun connectedIpv4Addresses(connectivity: ConnectivityManager): List<String> {
+    val linked = connectivity.allNetworks.asSequence().flatMap { network ->
+        val properties = connectivity.getLinkProperties(network)
+        val name = properties?.interfaceName?.lowercase()
+        val capabilities = connectivity.getNetworkCapabilities(network)
+        val isLan = capabilities?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true ||
+            capabilities?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET) == true ||
+            name?.let(::isLikelyClientInterface) == true
+        if (properties == null || !isLan || (name != null && isExcludedInterface(name))) emptySequence()
+        else properties.linkAddresses.asSequence().mapNotNull { it.address as? Inet4Address }.mapNotNull { it.hostAddress }
+    }
+    return (linked + localIpv4Addresses().asSequence())
         .filter(::validClientAddress)
         .distinct().sorted().toList()
+}
+
+private fun localIpv4Addresses(): List<String> = runCatching {
+    Collections.list(NetworkInterface.getNetworkInterfaces()).asSequence().flatMap { network ->
+        runCatching {
+            if (!network.isUp || network.isLoopback || isExcludedInterface(network.name.lowercase())) emptySequence()
+            else Collections.list(network.inetAddresses).asSequence()
+                .filterIsInstance<Inet4Address>()
+                .filterNot { it.isLoopbackAddress || it.isLinkLocalAddress || it.isAnyLocalAddress }
+                .mapNotNull { it.hostAddress }
+        }.getOrDefault(emptySequence())
+    }.toList()
 }.getOrDefault(emptyList())
+
+private fun isExcludedInterface(name: String): Boolean =
+    listOf("tun", "tap", "p2p", "rmnet").any(name::contains)
+
+private fun isLikelyClientInterface(name: String): Boolean =
+    listOf("wlan", "ap", "swlan", "eth", "rndis", "usb").any(name::contains)

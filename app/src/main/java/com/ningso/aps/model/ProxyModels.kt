@@ -97,7 +97,7 @@ fun ProxySettings.withProtocol(protocol: Protocol, port: Int, enabled: Boolean):
 fun configText(host: String, settings: ProxySettings, protocol: Protocol): String {
     require(validClientAddress(host)) { "No client-reachable IPv4 address" }
     require(settings.validPorts()) { "Invalid proxy ports" }
-    return "APS / SIGNAL\nProtocol: ${protocol.title}\nHost: $host\nPort: ${settings.port(protocol)}\nAuthentication: none\nTrusted LAN only. Configure the client manually."
+    return "${protocol.title} proxy\nHost: $host\nPort: ${settings.port(protocol)}\nAuthentication: none\nTrusted LAN only"
 }
 
 fun validClientAddress(host: String): Boolean {

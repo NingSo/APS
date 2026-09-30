@@ -1,6 +1,5 @@
 package com.ningso.aps.ui
 
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -59,18 +58,24 @@ internal fun OverviewScreen(
                 HorizontalDivider(Modifier.width(44.dp), color = Signal.Border)
                 Eyebrow("NO CLOUD", color = Signal.Muted)
             }
-            Text(when (runtime.phase) {
-                SessionPhase.RUNNING -> "✓  本地监听已通过自检"
-                SessionPhase.STARTING -> "绑定端口 · 校验本地监听"
-                SessionPhase.STOPPING -> "正在关闭活动连接"
-                SessionPhase.FAILED -> "!  启动失败，请检查端口或系统限制"
-                SessionPhase.STOPPED -> "开启后，其他设备可通过手机转发请求"
-            }, Modifier.align(Alignment.BottomCenter), fontSize = 10.sp,
-                color = if (runtime.phase == SessionPhase.FAILED) Signal.Error else Signal.Secondary)
+            Row(Modifier.align(Alignment.BottomCenter), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                SignalIcon(if (runtime.phase == SessionPhase.RUNNING) Glyph.CHECK else Glyph.INFO,
+                    Modifier.size(13.dp), if (runtime.phase == SessionPhase.RUNNING) Signal.Accent else Signal.Secondary)
+                Text(when (runtime.phase) {
+                    SessionPhase.RUNNING -> "本地监听已通过自检"
+                    SessionPhase.STARTING -> "绑定端口 · 校验本地监听"
+                    SessionPhase.STOPPING -> "正在关闭活动连接"
+                    SessionPhase.FAILED -> "启动失败，请检查端口或系统限制"
+                    SessionPhase.STOPPED -> "开启后，其他设备可通过手机转发请求"
+                }, fontSize = 10.sp,
+                    color = if (runtime.phase == SessionPhase.FAILED) Signal.Error else Signal.Secondary)
+            }
         }
         if (runtime.phase == SessionPhase.FAILED) {
             SignalCard {
                 Text(runtime.lastError ?: "请查看诊断和会话日志", color = Signal.Error, fontSize = 12.sp)
+                SecondaryAction("修改 HTTP 端口并重试", Glyph.TUNE, { onEdit(Protocol.HTTP) }, Modifier.fillMaxWidth())
                 SecondaryAction("查看诊断", Glyph.ACTIVITY, onDiagnostics, Modifier.fillMaxWidth())
             }
         }
@@ -106,7 +111,8 @@ internal fun OverviewScreen(
         } else {
             SignalCard {
                 Text("先找到局域网", fontSize = 20.sp)
-                Text("请让手机与客户端接入同一可信局域网。没有地址时，不生成连接二维码。", color = Signal.Secondary, fontSize = 12.sp)
+                Text("请让客户端接入手机的可信 Wi‑Fi 或个人热点。没有可达地址时，不生成连接二维码。",
+                    color = Signal.Secondary, fontSize = 12.sp, lineHeight = 20.sp)
                 SecondaryAction("检查连接", Glyph.LINK, onDiagnostics, Modifier.fillMaxWidth())
             }
         }
@@ -140,40 +146,53 @@ internal fun OverviewScreen(
 
 @Composable
 private fun SignalOrbit(phase: SessionPhase, animate: Boolean, onPower: () -> Unit) {
-    val spinning = animate && (phase == SessionPhase.RUNNING || phase == SessionPhase.STARTING)
-    val angle = if (spinning) {
-        val transition = rememberInfiniteTransition(label = "signal-orbit")
-        val rotation by transition.animateFloat(0f, 360f,
-            infiniteRepeatable(tween(if (phase == SessionPhase.STARTING) 2_500 else 20_000, easing = LinearEasing)),
-            label = "orbit-angle")
-        rotation
-    } else 0f
-    val color = phaseColor(phase)
+    val outerSpinning = animate && (phase == SessionPhase.RUNNING || phase == SessionPhase.STARTING)
+    val middleSpinning = animate && (phase == SessionPhase.RUNNING || phase == SessionPhase.STARTING || phase == SessionPhase.FAILED)
+    var elapsedNanos by remember { mutableLongStateOf(0L) }
+    // The session indicator follows frame time, independently of the system animation scale.
+    LaunchedEffect(outerSpinning, middleSpinning) {
+        if (outerSpinning || middleSpinning) {
+            val started = withFrameNanos { it }
+            while (true) withFrameNanos { elapsedNanos = it - started }
+        }
+    }
+    val outerRotation = if (outerSpinning) (elapsedNanos % 20_000_000_000L) / 20_000_000_000f * 360f else 0f
+    val middleRotation = if (middleSpinning) -(elapsedNanos % 38_000_000_000L) / 38_000_000_000f * 360f else 0f
+    val color = if (phase == SessionPhase.STOPPED) Color(0xFF74846D) else phaseColor(phase)
+    val centerColor = if (phase == SessionPhase.STOPPED) Signal.Accent else color
     Box(Modifier.size(206.dp).padding(bottom = 13.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val radius = size.minDimension / 2
             val middle = center
             drawCircle(Brush.radialGradient(listOf(color.copy(alpha = .06f), Color.Transparent), middle, radius), radius)
-            repeat(60) { tick ->
-                val a = Math.toRadians(tick * 6.0)
+            repeat(64) { tick ->
+                val a = Math.toRadians(tick * 360.0 / 64.0)
                 val r = radius - 3.dp.toPx()
-                val inner = r - if (tick % 5 == 0) 4.dp.toPx() else 1.5.dp.toPx()
-                drawLine(color.copy(alpha = if (tick % 5 == 0) .42f else .18f),
+                val inner = r - if (tick % 8 == 0) 7.dp.toPx() else 3.dp.toPx()
+                drawLine(color.copy(alpha = if (tick % 8 == 0) .38f else .15f),
                     middle + Offset((cos(a) * inner).toFloat(), (sin(a) * inner).toFloat()),
                     middle + Offset((cos(a) * r).toFloat(), (sin(a) * r).toFloat()), 1.dp.toPx())
             }
-            val r = radius - 18.dp.toPx()
-            drawCircle(color.copy(alpha = .25f), r, style = Stroke(1.dp.toPx()))
-            drawCircle(color.copy(alpha = .13f), r - 10.dp.toPx(), style = Stroke(1.dp.toPx()))
-            drawCircle(color.copy(alpha = .12f), r - 22.dp.toPx(), style = Stroke(1.dp.toPx()))
-            if (phase != SessionPhase.STOPPED) {
-                drawArc(color, angle - 95f, 115f, false,
-                    middle - Offset(r, r), Size(r * 2, r * 2), style = Stroke(1.5.dp.toPx(), cap = StrokeCap.Round))
-                val a = Math.toRadians((angle + 20).toDouble())
-                val dot = middle + Offset((cos(a) * r).toFloat(), (sin(a) * r).toFloat())
-                drawCircle(color.copy(alpha = .13f), 7.dp.toPx(), dot)
-                drawCircle(color, 2.5.dp.toPx(), dot)
-            }
+            val outer = radius - 18.dp.toPx()
+            val middleRing = outer - 10.dp.toPx()
+            val innerRing = outer - 22.dp.toPx()
+            drawCircle(color.copy(alpha = .09f), outer, style = Stroke(1.dp.toPx()))
+            drawCircle(color.copy(alpha = .09f), middleRing, style = Stroke(1.dp.toPx()))
+            drawCircle(color.copy(alpha = .19f), innerRing, style = Stroke(1.dp.toPx()))
+            val arcColor = Brush.linearGradient(listOf(color.copy(alpha = .08f), color), Offset.Zero, Offset(size.width, 0f))
+            drawArc(arcColor, outerRotation - 105f, 254f, false,
+                middle - Offset(outer, outer), Size(outer * 2, outer * 2),
+                style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
+            drawArc(color.copy(alpha = .45f), middleRotation, 33f, false,
+                middle - Offset(middleRing, middleRing), Size(middleRing * 2, middleRing * 2),
+                style = Stroke(1.dp.toPx(), cap = StrokeCap.Round))
+            val outerDotAngle = Math.toRadians((outerRotation - 19).toDouble())
+            val outerDot = middle + Offset((cos(outerDotAngle) * outer).toFloat(), (sin(outerDotAngle) * outer).toFloat())
+            drawCircle(color.copy(alpha = .13f), 7.dp.toPx(), outerDot)
+            drawCircle(color, 2.5.dp.toPx(), outerDot)
+            val middleDotAngle = Math.toRadians((middleRotation + 180).toDouble())
+            val middleDot = middle + Offset((cos(middleDotAngle) * middleRing).toFloat(), (sin(middleDotAngle) * middleRing).toFloat())
+            drawCircle(color, 2.dp.toPx(), middleDot)
         }
         val busy = phase == SessionPhase.STARTING || phase == SessionPhase.STOPPING
         val label = when (phase) {
@@ -183,13 +202,15 @@ private fun SignalOrbit(phase: SessionPhase, animate: Boolean, onPower: () -> Un
             SessionPhase.FAILED -> "重新启动"
             SessionPhase.STOPPED -> "启动代理"
         }
-        Column(Modifier.size(124.dp).clip(CircleShape)
+        Column(Modifier.size(124.dp).background(
+            Brush.radialGradient(listOf(centerColor.copy(alpha = .06f), Color.Transparent)), CircleShape)
+            .clip(CircleShape)
             .clickable(enabled = !busy, role = Role.Button, onClickLabel = label, onClick = onPower)
             .semantics { stateDescription = label }.testTag("power-control"),
             verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-            SignalIcon(if (phase == SessionPhase.FAILED) Glyph.ALERT else Glyph.POWER, Modifier.size(26.dp), color)
+            SignalIcon(if (phase == SessionPhase.FAILED) Glyph.ALERT else Glyph.POWER, Modifier.size(26.dp), centerColor)
             Spacer(Modifier.height(11.dp))
-            Text(label, fontSize = 17.sp, color = color)
+            Text(label, fontSize = 17.sp, color = centerColor)
             Spacer(Modifier.height(7.dp))
             Eyebrow(if (phase == SessionPhase.RUNNING) "TAP TO STOP" else if (busy) "PLEASE WAIT" else "TAP TO START", color = Signal.Secondary)
         }

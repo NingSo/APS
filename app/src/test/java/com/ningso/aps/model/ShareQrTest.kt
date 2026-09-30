@@ -21,10 +21,11 @@ class ShareQrTest {
         val payload = configText(host, ProxySettings(), Protocol.HTTP)
         assertEquals(payload, decode(payload)); assertTrue(payload.contains("Port: 8080"))
         assertTrue(payload.contains("Authentication: none"))
+        assertEquals("HTTP proxy\nHost: 192.0.2.10\nPort: 8080\nAuthentication: none\nTrusted LAN only", payload)
     }
     @Test fun socksQrDecodesToExactCurrentConfiguration() {
         val payload = configText(host, ProxySettings(), Protocol.SOCKS5)
-        assertEquals(payload, decode(payload)); assertTrue(payload.contains("Protocol: SOCKS5"))
+        assertEquals(payload, decode(payload)); assertTrue(payload.contains("SOCKS5 proxy"))
         assertTrue(payload.contains("Port: 1080"))
     }
     @Test fun changedPortProducesNewDecodablePayload() {

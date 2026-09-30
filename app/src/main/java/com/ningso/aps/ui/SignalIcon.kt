@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import kotlin.math.cos
 import kotlin.math.sin
 
-internal enum class Glyph { LOGO, POWER, SETTINGS, LINK, ACTIVITY, COPY, ARROW, BACK, CLOSE, CHECK, QR, TUNE, DOWNLOAD, SEARCH, ALERT, GLOBE, INFO }
+internal enum class Glyph { LOGO, POWER, SETTINGS, LINK, ACTIVITY, COPY, ARROW, BACK, CLOSE, CHECK, QR, TUNE, DOWNLOAD, SEARCH, ALERT, GLOBE, INFO, TERMINAL }
 
 @Composable
 internal fun SignalIcon(glyph: Glyph, modifier: Modifier, color: Color = Signal.Text) {
@@ -73,6 +73,7 @@ internal fun SignalIcon(glyph: Glyph, modifier: Modifier, color: Color = Signal.
                     drawOval(color, Offset(8f, 3f), Size(8f, 18f), style = stroke); line(3f, 12f, 21f, 12f) }
                 Glyph.INFO -> { drawCircle(color, 9f, Offset(12f, 12f), style = stroke)
                     line(12f, 11f, 12f, 17f); drawCircle(color, 0.9f, Offset(12f, 7f)) }
+                Glyph.TERMINAL -> { line(5f, 7f, 11f, 12f); line(11f, 12f, 5f, 17f); line(14f, 17f, 20f, 17f) }
             }
         }
     }
