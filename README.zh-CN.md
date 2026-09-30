@@ -43,6 +43,16 @@ Windows 使用 `python scripts/bootstrap_gradle.py`，然后用 `gradlew.bat` �
 
 构建成功后，Debug APK 的预期位置为 `app/build/outputs/apk/debug/app-debug.apk`。没有配置正式签名或自动发布 Release。Debug 签名不能替代正式签名，不同 CI 运行生成的 Debug APK 不保证能够相互覆盖升级。
 
+## iOS 目标
+
+`ios/` 新增了独立的 SwiftUI 目标，使用 `Network.framework` 提供前台代理。它对齐 Android 的 HTTP/HTTPS `CONNECT`、SOCKS5 TCP `CONNECT` 和 SIGNAL 导航，同时保持 Android 源码及上游核心不变。使用 `xcodegen generate --spec ios/project.yml` 生成 Xcode 工程，随后按 [ios/README.zh-CN.md](ios/README.zh-CN.md) 中的模拟器命令构建。普通 iOS App 不能承诺锁屏或后台持续监听；这需要单独的 Network Extension 设计和 entitlement 审核。真实 iPhone、Wi‑Fi、个人热点及跨设备代理转发仍待验收。
+
+## SIGNAL 参考页面
+
+| 概览 | 连接 |
+| --- | --- |
+| ![SIGNAL 概览](docs/APS-SIGNAL/screens/01-overview.webp) | ![SIGNAL 连接](docs/APS-SIGNAL/screens/02-connect.webp) |
+
 ## CI 与验收
 
 `.github/workflows/android.yml` 在 `main` 推送、PR 或手动触发时进行源码检查、单元测试、Lint 和 Debug 构建。只有构建成功才上传 APK，不要求签名密钥。

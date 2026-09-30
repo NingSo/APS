@@ -43,6 +43,16 @@ On Windows, run `python scripts/bootstrap_gradle.py`, then `gradlew.bat` with th
 
 A successful debug build is expected to produce `app/build/outputs/apk/debug/app-debug.apk`. Release signing and automatic releases are intentionally not configured. Debug signing is not a production signing strategy and CI-generated debug APKs may not be mutually upgrade-compatible.
 
+## iOS target
+
+`ios/` contains an independent SwiftUI target with a `Network.framework` foreground proxy. It mirrors the Android HTTP/HTTPS `CONNECT` and SOCKS5 TCP `CONNECT` behavior and SIGNAL navigation, while preserving the Android source and upstream core. Generate the Xcode project with `xcodegen generate --spec ios/project.yml`, then build with the simulator command in [ios/README.md](ios/README.md). A normal iOS app cannot promise lock-screen or background listener persistence; that requires a separate Network Extension design and entitlement review. Real iPhone Wi-Fi, Personal Hotspot and cross-device proxy transfer are still pending acceptance.
+
+## SIGNAL reference screens
+
+| Overview | Connect |
+| --- | --- |
+| ![SIGNAL Overview](docs/APS-SIGNAL/screens/01-overview.webp) | ![SIGNAL Connect](docs/APS-SIGNAL/screens/02-connect.webp) |
+
 ## CI and review
 
 `.github/workflows/android.yml` runs source checks, unit tests, lint and a debug build on pushes to `main`, pull requests, or manual dispatch. It uploads the APK only after a successful build; no signing secrets are required.
