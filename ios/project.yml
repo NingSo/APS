@@ -1,0 +1,50 @@
+name: APS
+options:
+  bundleIdPrefix: com.ningso.aps
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  xcodeVersion: "1500"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    DEVELOPMENT_TEAM: ""
+targets:
+  APS:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/APS
+      - path: Support/Assets.xcassets
+    info:
+      path: Support/Info.plist
+      properties:
+        NSLocalNetworkUsageDescription: "APS listens for proxy clients on your trusted local network."
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ningso.aps.ios
+        PRODUCT_NAME: APS
+        INFOPLIST_KEY_CFBundleDisplayName: APS / SIGNAL
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "APS listens for proxy clients on your trusted local network."
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: NO
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+    scheme:
+      testTargets:
+        - APSTests
+  APSTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/APS
+    dependencies:
+      - target: APS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ningso.aps.ios.tests
