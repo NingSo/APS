@@ -1,0 +1,52 @@
+name: iOS native build and tests
+
+on:
+  push:
+    branches: [ios]
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  pull_request:
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check iOS scope and source
+        run: python3 ios/scripts/check_source.py
+      - name: Install XcodeGen
+        run: command -v xcodegen >/dev/null || brew install xcodegen
+      - name: Compile and run native tests
+        run: bash ios/scripts/ci.sh
+      - name: Retain native verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aps-ios-verification
+          path: |
+            ios/build/Tests.xcresult
+            ios/build/screenshots/
+            ios/build/xcodebuild.log
+            ios/build/devices.json
+            ios/build/ui-tests.mov
+            ios/build/video.log
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Retain simulator app
+        uses: actions/upload-artifact@v4
+        with:
+          name: aps-ios-simulator
+          path: ios/build/DerivedData/Build/Products/Debug-iphonesimulator/APS.app
+          if-no-files-found: error
+          retention-days: 14

@@ -2,49 +2,76 @@ name: APS
 options:
   bundleIdPrefix: com.ningso.aps
   deploymentTarget:
-    iOS: "16.0"
+    iOS: '16.0'
   createIntermediateGroups: true
-  xcodeVersion: "1500"
 settings:
   base:
-    SWIFT_VERSION: "6.0"
-    SWIFT_STRICT_CONCURRENCY: minimal
-    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
-    DEVELOPMENT_TEAM: ""
+    SWIFT_VERSION: '5.0'
+    SWIFT_STRICT_CONCURRENCY: targeted
+    IPHONEOS_DEPLOYMENT_TARGET: '16.0'
+    DEVELOPMENT_TEAM: ''
+    CURRENT_PROJECT_VERSION: '1'
+    MARKETING_VERSION: '1.0.0'
 targets:
   APS:
     type: application
     platform: iOS
     sources:
-      - path: Sources/APS
-      - path: Support/Assets.xcassets
+      - path: APS
+      - path: Support
+      - path: ../LICENSE
+        buildPhase: resources
     info:
       path: Support/Info.plist
       properties:
-        NSLocalNetworkUsageDescription: "APS listens for proxy clients on your trusted local network."
+        CFBundleDisplayName: APS / SIGNAL
+        NSLocalNetworkUsageDescription: APS 需要在你确认可信的局域网中接收代理客户端连接。
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ningso.aps.ios
-        PRODUCT_NAME: APS
-        INFOPLIST_KEY_CFBundleDisplayName: APS / SIGNAL
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "APS listens for proxy clients on your trusted local network."
-        TARGETED_DEVICE_FAMILY: "1,2"
+        TARGETED_DEVICE_FAMILY: '1,2'
         SUPPORTS_MACCATALYST: NO
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
-    scheme:
-      testTargets:
-        - APSTests
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: YES
   APSTests:
     type: bundle.unit-test
     platform: iOS
     sources:
-      - path: Tests/APS
+      - path: Tests
     dependencies:
       - target: APS
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ningso.aps.ios.tests
+        GENERATE_INFOPLIST_FILE: YES
+  APSUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: APS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ningso.aps.ios.uitests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  APS:
+    build:
+      targets:
+        APS: all
+    test:
+      targets:
+        - APSTests
+        - APSUITests
+      gatherCoverageData: true
