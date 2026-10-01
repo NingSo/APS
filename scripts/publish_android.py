@@ -118,9 +118,9 @@ def publish():
     source = command('git', 'rev-parse', 'HEAD')
     unit = {'tests': 0, 'failures': 0, 'errors': 0, 'skipped': 0}
     for module in ('app', 'proxycore'):
-        reports = list((ROOT / module / 'build/test-results/testReleaseUnitTest').glob('TEST-*.xml'))
+        reports = list((ROOT / module / 'build/test-results/testDebugUnitTest').glob('TEST-*.xml'))
         if not reports:
-            raise RuntimeError('Missing executed release-unit-test reports for ' + module)
+            raise RuntimeError('Missing executed unit-test reports for ' + module)
         for report in reports:
             suite = ET.parse(report).getroot()
             for key in unit:
@@ -148,7 +148,7 @@ def publish():
     provenance = {'source_sha': source, 'ci_run': run_url, 'release_tag': tag,
                   'version_name': version, 'version_code': cfg['version_code'], 'application_id': 'com.ningso.aps',
                   'variant': 'release', 'debuggable': False, 'apk_sha256': apk_hash,
-                  'signer_sha256': fingerprint, 'unit_tests': unit, 'owner_functional_acceptance': True}
+                  'signer_sha256': fingerprint, 'unit_tests': unit, 'unit_test_variant': 'debug', 'owner_functional_acceptance': True}
     (out / 'BUILD-PROVENANCE.json').write_text(json.dumps(provenance, indent=2) + '\n')
     note = f'''# APS Android {version} — 正式版 / Stable release
 
@@ -165,7 +165,7 @@ Download the APK asset, not the automatic source archives.
 
 功能和界面沿用项目所有者已验收的 Android 版本；本次只调整版本与发布打包。
 The owner has accepted the Android functionality. This change updates versioning and distribution only.
-Release unit tests ({unit['tests']}), Lint, APK signing and ZIP alignment checks passed.
+Unit tests ({unit['tests']}, existing debug test variant), Release Lint/build, APK signing and ZIP alignment checks passed.
 本次自动化校验不代表重新执行了真机验收。
 
 ## 安装与升级 / Installation and updates
