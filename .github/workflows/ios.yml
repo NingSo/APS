@@ -25,6 +25,8 @@ jobs:
           fetch-depth: 0
       - name: Check iOS scope and source
         run: python3 ios/scripts/check_source.py
+      - name: Check IPA packaging guards
+        run: python3 ios/scripts/test_package_ipa.py
       - name: Install XcodeGen
         run: command -v xcodegen >/dev/null || brew install xcodegen
       - name: Prepare native project
@@ -85,4 +87,44 @@ jobs:
           name: aps-ios-simulator
           path: ios/build/aps-ios-simulator.zip
           if-no-files-found: error
+          retention-days: 14
+
+  publish-device-ipa:
+    needs: native
+    if: github.ref == 'refs/heads/ios' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[release-ios]')))
+    runs-on: macos-15
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install XcodeGen
+        run: command -v xcodegen >/dev/null || brew install xcodegen
+      - name: Generate native project
+        run: bash ios/bootstrap.sh
+      - name: Build Release for physical iPhone and iPad
+        run: |
+          set -o pipefail
+          mkdir -p ios/build
+          xcodebuild -project ios/APS.xcodeproj -scheme APS -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath ios/build/Device \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' \
+            build 2>&1 | tee ios/build/device-build.log
+      - name: Validate device IPA and publish clearly unsigned release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 ios/scripts/package_ipa.py
+      - name: Retain device build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aps-ios-device-release
+          path: |
+            ios/build/device-build.log
+            ios/build/release/
+          if-no-files-found: warn
           retention-days: 14
