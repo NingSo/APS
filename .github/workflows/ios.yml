@@ -18,7 +18,7 @@ concurrency:
 jobs:
   native:
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,25 +27,59 @@ jobs:
         run: python3 ios/scripts/check_source.py
       - name: Install XcodeGen
         run: command -v xcodegen >/dev/null || brew install xcodegen
-      - name: Compile and run native tests
-        run: bash ios/scripts/ci.sh
+      - name: Prepare native project
+        id: prepare
+        timeout-minutes: 6
+        run: bash ios/scripts/ci.sh prepare
+      - name: Compile app and test bundles
+        id: build
+        timeout-minutes: 12
+        run: bash ios/scripts/ci.sh build
+      - name: Retain build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aps-ios-build-log
+          path: |
+            ios/build/build.log
+            ios/build/selected-device.json
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Run unit and local proxy integration tests
+        id: unit
+        timeout-minutes: 10
+        run: bash ios/scripts/ci.sh unit
+      - name: Retain protocol test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aps-ios-protocol-log
+          path: ios/build/unit.log
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Run complete-app UI tests and record motion
+        if: always() && steps.build.outcome == 'success' && !cancelled()
+        id: ui
+        timeout-minutes: 17
+        run: bash ios/scripts/ci.sh ui
+      - name: Collect native results
+        if: always()
+        run: bash ios/scripts/ci.sh collect
       - name: Retain native verification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: aps-ios-verification
           path: |
-            ios/build/Tests.xcresult
+            ios/build/*.xcresult
             ios/build/screenshots/
-            ios/build/xcodebuild.log
-            ios/build/devices.json
-            ios/build/selected-device.json
-            ios/build/test-summary.json
+            ios/build/*.log
+            ios/build/*.json
             ios/build/ui-tests.mov
-            ios/build/video.log
           if-no-files-found: warn
           retention-days: 14
       - name: Retain simulator app
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: aps-ios-simulator
