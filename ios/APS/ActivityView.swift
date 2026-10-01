@@ -2,9 +2,12 @@ import SwiftUI
 
 struct SessionActivityView: View {
     @ObservedObject var store: AppStore
+    @FocusState private var searchFocused: Bool
     var body: some View {
         ScrollView {
-            LazyVStack(alignment:.leading,spacing:15) {
+            // The session is bounded to 200 rows. Eager layout keeps keyboard focus stable
+            // when the search field is initially below the fold on compact iPhones.
+            VStack(alignment:.leading,spacing:15) {
                 PageHeading(eyebrow:"LIVE / IN THIS SESSION",title:"看见每次流动。",subtitle:"仅展示当前会话，不上传、不建立云端历史。")
                 if store.session.phase == .running {
                     SignalCard {
@@ -46,7 +49,9 @@ struct SessionActivityView: View {
                 HStack(spacing:10) {
                     SignalIcon(glyph:.search,color:Signal.secondary).frame(width:17,height:17)
                     TextField("搜索错误、协议或事件",text:$store.logQuery).signalFont(12)
-                        .autocorrectionDisabled().textInputAutocapitalization(.never).accessibilityIdentifier("log-search")
+                        .autocorrectionDisabled().textInputAutocapitalization(.never)
+                        .focused($searchFocused).submitLabel(.done).onSubmit { searchFocused = false }
+                        .accessibilityIdentifier("log-search")
                 }.padding(14).frame(minHeight:48).overlay(RoundedRectangle(cornerRadius:12).stroke(Signal.border,lineWidth:1))
                 Choices(labels:["全部","信息","提醒","错误"],selected:filterIndex,compact:true) {
                     store.logFilter = $0 == 0 ? nil : EventLevel.allCases[$0-1]
@@ -54,6 +59,7 @@ struct SessionActivityView: View {
                 if store.filteredEvents.isEmpty {
                     Text(store.session.events.isEmpty ? "尚无会话记录。启动服务后，生命周期事件会出现在这里。" : "没有匹配的日志。试试其他关键词或筛选条件。")
                         .signalFont(12).foregroundColor(Signal.secondary).padding(.vertical,20)
+                        .accessibilityIdentifier("log-empty-result")
                 }
                 ForEach(store.filteredEvents) { event in
                     VStack(alignment:.leading,spacing:9) {
@@ -67,7 +73,7 @@ struct SessionActivityView: View {
                 }
                 Text("内存中最多保留 200 条日志、60 个采样。停止或重建会话后清空；接收为目标到客户端，发送为客户端到目标。").signalFont(10).foregroundColor(Signal.muted).lineSpacing(4)
             }.screenPadding()
-        }.accessibilityIdentifier("screen-activity")
+        }.scrollDismissesKeyboard(.interactively).accessibilityIdentifier("screen-activity")
     }
     private var filterIndex:Int { store.logFilter.flatMap { EventLevel.allCases.firstIndex(of:$0) }.map { $0+1 } ?? 0 }
     private func count(_ title:String,value:String) -> some View {

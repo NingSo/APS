@@ -55,7 +55,7 @@ struct ConnectionView: View {
                     Text("主机地址 / HOST").signalFont(10).opacity(0.65)
                     Text(host).signalFont(21,mono:true).minimumScaleFactor(0.7).lineLimit(1)
                     HStack(spacing:26) {
-                        VStack(alignment:.leading) { Text("端口 / PORT").signalFont(9).opacity(0.65); Text("\(store.preferences.port(kind))").signalFont(19,mono:true) }
+                        VStack(alignment:.leading) { Text("端口 / PORT").signalFont(9).opacity(0.65); Text(String(store.preferences.port(kind))).signalFont(19,mono:true) }
                         VStack(alignment:.leading) { Text("身份认证 / AUTH").signalFont(9).opacity(0.65); Text("无").signalFont(19) }
                     }
                 }.frame(maxWidth:.infinity,alignment:.leading)

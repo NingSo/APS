@@ -98,7 +98,7 @@ private struct ShareContent:View {
         Eyebrow(text:"PASS THE CONNECTION")
         Text("把连接交给下一台。").signalFont(25)
         QRCodeView(text:payload).frame(width:214,height:214).frame(maxWidth:.infinity).padding(.vertical,12)
-        Text("\(kind.rawValue) / \(host):\(store.preferences.port(kind))").signalFont(15,mono:true).frame(maxWidth:.infinity).textSelection(.enabled)
+        Text(verbatim:"\(kind.rawValue) / \(host):\(store.preferences.port(kind))").signalFont(15,mono:true).frame(maxWidth:.infinity).textSelection(.enabled)
         Text("二维码是配置文本，需要手动填入客户端。无鉴权，仅限可信局域网；分享给谁，由你决定。").signalFont(12).foregroundColor(Signal.secondary).lineSpacing(4)
         ShareLink(item:payload) {
             Text("分享配置文本").signalFont(14,weight:.medium).frame(maxWidth:.infinity,minHeight:50)

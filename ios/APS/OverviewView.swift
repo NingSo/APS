@@ -106,7 +106,8 @@ struct OverviewView: View {
                         .signalFont(9).foregroundColor(active ? Signal.accent : Signal.secondary)
                 }
                 HStack {
-                    Text(":\(store.preferences.port(kind))").signalFont(18,mono:true)
+                    // Endpoints are identifiers, not locale-formatted quantities.
+                    Text(verbatim:":\(store.preferences.port(kind))").signalFont(18,mono:true)
                     Spacer(); SignalIcon(glyph:.tune).frame(width:19,height:19)
                 }
             }
