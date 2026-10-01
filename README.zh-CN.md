@@ -14,7 +14,7 @@ Android · iOS / iPadOS
 
 [English](README.md) · **简体中文**
 
-[下载安装](#download) · [界面体验](#experience) · [功能特性](#features) · [支持范围](#support) · [架构设计](#architecture) · [快速开始](#quick-start) · [开发指南](#development) · [致谢与版权](#credits)
+[下载安装](#download) · [界面体验](#experience) · [功能特性](#features) · [支持范围](#support) · [架构设计](#architecture) · [快速开始](#quick-start) · [Clash Verge 接入](#clash-verge) · [开发指南](#development) · [致谢与版权](#credits)
 
 </div>
 
@@ -23,6 +23,8 @@ Android · iOS / iPadOS
 **APS 可将 Android 设备、iPhone 或 iPad 变为本地 HTTP / SOCKS5 代理服务器。** 让可信局域网中支持代理的浏览器、命令行工具或应用通过设备转发请求，并在原生界面中完成启停、连接配置分享、流量观察和问题排查。
 
 项目起源于 **Android Proxy Server**，现已将 **SIGNAL** 体验扩展至两套独立原生实现：Android 使用 **Kotlin / Jetpack Compose**，iOS 使用 **Swift / SwiftUI**。它是运行在设备上的代理服务器，不是 VPN 订阅服务、远程节点供应商或 WebView 套壳应用。
+
+**典型场景：** 手机运行 APS，电脑通过 [Clash Verge 接入](#clash-verge) SOCKS5 或 HTTP，借用手机的网络出口；手机 VPN 覆盖 APS 及目标请求时，也可经由手机 VPN 出口访问。
 
 当前 `main` 分支承担项目首页与 Android 源码入口；独立 iOS 应用位于 [`ios` 分支](https://github.com/NingSo/APS/tree/ios)。
 
@@ -147,6 +149,97 @@ curl --proxy http://192.0.2.10:8080 https://example.com
 # SOCKS5 TCP，由代理解析目标域名
 curl --proxy socks5h://192.0.2.10:1080 https://example.com
 ```
+
+<a id="clash-verge"></a>
+## 搭配 Clash Verge：电脑借用手机网络
+
+**手机运行 APS，电脑运行 Clash Verge，电脑中被代理的请求由手机建立出站连接。** 电脑和手机需局域网互通，例如接入同一可信 Wi-Fi；连接手机热点也以实际可达为前提。这里借用的是手机系统为 APS 选择的网络出口，**不一定是蜂窝流量**，也不是把电脑直接接入手机的 VPN 虚拟网卡。
+
+```text
+电脑应用 → 电脑上的 Clash Verge → 手机 APS（SOCKS5 / HTTP）
+                                      ↓
+                                手机系统与 VPN 路由策略
+                                      ↓
+                              VPN 出口或普通网络 → 目标服务
+```
+
+### 连接步骤
+
+1. **手机端。** 在 APS 中启用 SOCKS5（默认 `1080`）或 HTTP（默认 `8080`），确认可信网络并启动，记下显示的局域网地址。准备使用手机 VPN 时，先连接 VPN，再返回 APS 启动；iOS 使用期间保持 APS 在前台。
+2. **电脑端。** 以下示例使用 **Clash Verge Rev / Mihomo** 配置格式。在订阅／配置页创建独立的本地（Local）配置，粘贴完整示例或导入保存的 YAML，然后启用这份配置。本场景不需要购买或导入远程订阅。
+3. **选中出口。** 使用规则模式，在 `APS` 代理组中选择手机已启用的 `APS-SOCKS5` 或 `APS-HTTP`；首次接入先关闭电脑端 TUN、开启系统代理，用浏览器验证。仅添加节点但没有让规则／代理组选用它，不会自动生效。
+
+<details>
+<summary><strong>展开完整本地配置示例</strong> — SOCKS5 与 HTTP 二选一</summary>
+
+**先把两处 `192.0.2.10` 替换为手机 APS 的实际地址**，端口以应用显示为准；该地址仅供文档示例。以下是独立配置，不要整段覆盖已有订阅，也不要重复添加顶层 `proxies`、`proxy-groups` 或 `rules` 字段。
+
+```yaml
+mixed-port: 7897
+allow-lan: false
+mode: rule
+log-level: info
+tun:
+  enable: false
+
+proxies:
+  - name: APS-SOCKS5
+    type: socks5
+    server: 192.0.2.10
+    port: 1080
+    udp: false
+  - name: APS-HTTP
+    type: http
+    server: 192.0.2.10
+    port: 8080
+    tls: false
+
+proxy-groups:
+  - name: APS
+    type: select
+    proxies:
+      - APS-SOCKS5
+      - APS-HTTP
+
+rules:
+  - MATCH,APS
+```
+
+`1080` / `8080` 是**手机 APS 的上游服务端口**；`7897` 是**电脑 Clash 的本地混合代理端口**，不是同一个端口。Clash Verge 的界面设置或覆写可能改变本地端口，以最终生效配置为准。`allow-lan: false` 表示不向其他设备开放电脑上的 Clash 入站，不妨碍电脑主动连接手机 APS。
+
+APS 无代理账号密码；HTTP 的 `tls: false` 不妨碍通过 `CONNECT` 访问 HTTPS 网站，它仅表示电脑到 APS 的代理入口不额外套一层 TLS。SOCKS5 的 `udp: false` 对应 APS 当前仅支持 TCP 的能力。
+
+该示例的 `MATCH,APS` 将**进入 Clash 的可代理 TCP 请求**交给所选 APS 节点，不代表所有电脑流量已接管。接入已有配置时，应合并节点和代理组，并让目标规则指向 `APS`；已有的 `DIRECT` 规则仍可能让部分请求从电脑直连。
+
+</details>
+
+### 手机开启 VPN 后，电脑是否也走 VPN？
+
+**可以，但前提是手机 VPN 接管了 APS 的出站连接，并将目标请求路由到 VPN 出口。** APS 不提供 VPN 隧道，也不强制其他 VPN 的路由；HTTP 和 SOCKS5 都遵循这一条件，不是 SOCKS5 独有的能力。
+
+| 检查点 | 正确理解与操作 |
+| --- | --- |
+| 手机 VPN 接管范围 | Android 分应用模式要包含实际运行的 APS，不能把它排除或设为直连。正式包名为 `com.ningso.aps`，旧测试包是 `com.ningso.aps.debug`；仅浏览器代理、仅工作资料 VPN 不代表覆盖个人资料中的 APS。 |
+| 两层分流规则 | 电脑 Clash 先决定请求是否交给 APS；手机 VPN 再决定 APS 的目标连接是否走隧道。手机 VPN 处于规则／分流模式时，部分目标仍可按规则直连。 |
+| 局域网可达性 | VPN 的局域网阻断、系统锁定模式、Wi-Fi 客户端隔离或热点限制可能阻断电脑到手机的连接。按所用 VPN 的说明允许必要的可信局域网通信，不要为排障一概关闭安全防护。 |
+| iOS 生命周期 | 先开启手机 VPN，再返回 APS 启动并保持前台。切到 VPN 应用、锁屏或进入后台会停止 APS；具体 VPN 的路由兼容性需真机验证。 |
+| 流量与断线边界 | APS 不支持 UDP／BIND；电脑开启 TUN 也不会补齐 UDP。DNS 是否经手机取决于客户端解析方式。APS 没有独立的 VPN 断线阻断，VPN 断开后新连接可能按系统路由直连；需要禁止回落时应配置并验证手机 VPN／系统的阻断策略。 |
+
+### 验证实际出口，而不是只看 VPN 图标
+
+先绕过电脑 Clash，验证 **电脑 → 手机 APS**；再验证 **电脑 → Clash → 手机 APS**。下面会主动访问第三方 [ipify](https://www.ipify.org/) 查询该请求的公网 IPv4，也可换成自有的出口查询服务。替换手机地址；第二条命令的本地端口须与 Clash 实际设置一致。Windows PowerShell 可使用 `curl.exe` 避免命令别名差异。
+
+```sh
+# 直接连接手机 SOCKS5；socks5h 将目标域名交给手机解析
+curl --noproxy "" --proxy socks5h://192.0.2.10:1080 --connect-timeout 10 --max-time 20 https://api.ipify.org
+
+# 经过电脑 Clash，再由所选 APS 节点转发
+curl --noproxy "" --proxy http://127.0.0.1:7897 --connect-timeout 10 --max-time 20 https://api.ipify.org
+```
+
+同时查看 APS 计数变化、电脑 Clash 的命中节点，以及手机 VPN 可提供的目标路由日志。**测试目标应被手机 VPN 规则选入隧道**；返回预期 VPN 出口是该次请求的验证依据。手机浏览器可能使用不同分流规则，不能只比较手机与电脑浏览器的 IP；一次出口查询也不证明其他目标、DNS 或 UDP 都走 VPN。
+
+协议字段与操作参考：[Mihomo SOCKS5](https://wiki.metacubex.one/config/proxies/socks/)、[HTTP](https://wiki.metacubex.one/config/proxies/http/)、[路由规则](https://wiki.metacubex.one/config/rules/)、[Clash Verge 本地配置](https://www.clashverge.dev/guide/profile.html)、[系统代理与 TUN](https://www.clashverge.dev/guide/quickstart.html)、[Android 分应用 VPN 与路由](https://developer.android.com/develop/connectivity/vpn#per-app)、[curl 代理参数](https://curl.se/docs/manpage.html#--proxy)。
 
 <a id="security"></a>
 ## 安全与隐私
