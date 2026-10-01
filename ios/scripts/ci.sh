@@ -5,18 +5,31 @@ mkdir -p ios/build
 bash ios/bootstrap.sh
 xcodebuild -version
 xcrun simctl list devices available --json > ios/build/devices.json
+export IOS_SIMULATOR_SDK="$(xcrun --sdk iphonesimulator --show-sdk-version)"
 DEVICE="$(python3 - <<'PY'
-import json
+import json, os, re
 from pathlib import Path
 j=json.loads(Path('ios/build/devices.json').read_text())
-for runtime, devices in sorted(j['devices'].items(),reverse=True):
+sdk=tuple(map(int,os.environ['IOS_SIMULATOR_SDK'].split('.')[:2]))
+candidates=[]
+for runtime, devices in j['devices'].items():
+    match=re.search(r'iOS-(\d+)-(\d+)',runtime)
+    if not match:
+        continue
+    version=tuple(map(int,match.groups()))
+    if version > sdk or version < (16,0):
+        continue
     for d in devices:
-        if 'iOS' in runtime and d['name'].startswith('iPhone') and d.get('isAvailable'):
-            print(d['udid']); raise SystemExit
-raise SystemExit('No available iPhone simulator')
+        if d['name'].startswith('iPhone') and d.get('isAvailable'):
+            candidates.append((version,d['name'],d['udid']))
+if not candidates:
+    raise SystemExit('No iPhone simulator compatible with the selected Xcode SDK')
+version,name,udid=sorted(candidates,reverse=True)[0]
+Path('ios/build/selected-device.json').write_text(json.dumps({'runtime':version,'device':name,'sdk':sdk}))
+print(udid)
 PY
 )"
-# bootstatus waits for readiness; no fixed boot delay.
+# bootstatus waits for readiness; do not choose a runtime newer than the active SDK.
 xcrun simctl boot "$DEVICE" 2>/dev/null || true
 xcrun simctl bootstatus "$DEVICE" -b
 xcrun simctl io "$DEVICE" recordVideo ios/build/ui-tests.mov > ios/build/video.log 2>&1 &

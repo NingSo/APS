@@ -39,24 +39,28 @@ private struct OrbitDrawing: View {
     var body: some View {
         Canvas { context, size in
             let center = CGPoint(x: size.width/2, y: size.height/2)
-            let radius = min(size.width,size.height)/2
+            let radius = Double(min(size.width,size.height))/2
             func point(_ radius: Double, _ degrees: Double) -> CGPoint {
-                CGPoint(x: center.x + cos(degrees * .pi/180)*radius, y: center.y + sin(degrees * .pi/180)*radius)
+                CGPoint(x: Double(center.x) + cos(degrees * .pi/180)*radius,
+                        y: Double(center.y) + sin(degrees * .pi/180)*radius)
             }
-            func circle(_ center: CGPoint, _ radius: Double) -> Path { Path(ellipseIn: CGRect(x: center.x-radius,y: center.y-radius,width: radius*2,height: radius*2)) }
-            context.fill(circle(center,radius), with: .radialGradient(Gradient(colors: [color.opacity(0.06),.clear]), center: center, startRadius: 0, endRadius: radius))
+            func circle(_ center: CGPoint, _ radius: Double) -> Path {
+                Path(ellipseIn: CGRect(x: Double(center.x)-radius, y: Double(center.y)-radius, width: radius*2, height: radius*2))
+            }
+            context.fill(circle(center,radius), with: .radialGradient(Gradient(colors: [color.opacity(0.06),.clear]), center: center, startRadius: 0, endRadius: CGFloat(radius)))
             for tick in 0..<64 {
                 let degrees = Double(tick)*360/64
-                var p = Path(); p.move(to: point(radius-3-(tick % 8 == 0 ? 7 : 3),degrees)); p.addLine(to: point(radius-3,degrees))
+                let length: Double = tick % 8 == 0 ? 7 : 3
+                var p = Path(); p.move(to: point(radius-3-length,degrees)); p.addLine(to: point(radius-3,degrees))
                 context.stroke(p, with: .color(color.opacity(tick % 8 == 0 ? 0.38 : 0.15)), lineWidth: 1)
             }
             let outer = radius-18; let middle = outer-10
             context.stroke(circle(center,outer), with: .color(color.opacity(0.09)), lineWidth: 1)
             context.stroke(circle(center,middle), with: .color(color.opacity(0.09)), lineWidth: 1)
             context.stroke(circle(center,outer-22), with: .color(color.opacity(0.19)), lineWidth: 1)
-            var a = Path(); a.addArc(center: center, radius: outer, startAngle: .degrees(outerAngle-105), endAngle: .degrees(outerAngle+149), clockwise: false)
+            var a = Path(); a.addArc(center: center, radius: CGFloat(outer), startAngle: .degrees(outerAngle-105), endAngle: .degrees(outerAngle+149), clockwise: false)
             context.stroke(a, with: .linearGradient(Gradient(colors: [color.opacity(0.08),color]), startPoint: .zero, endPoint: CGPoint(x:size.width,y:0)), style: StrokeStyle(lineWidth: 2, lineCap: .round))
-            var b = Path(); b.addArc(center: center, radius: middle, startAngle: .degrees(middleAngle), endAngle: .degrees(middleAngle+33), clockwise: false)
+            var b = Path(); b.addArc(center: center, radius: CGFloat(middle), startAngle: .degrees(middleAngle), endAngle: .degrees(middleAngle+33), clockwise: false)
             context.stroke(b, with: .color(color.opacity(0.45)), style: StrokeStyle(lineWidth:1,lineCap:.round))
             let dot = point(outer,outerAngle-19)
             context.fill(circle(dot,7),with:.color(color.opacity(0.13)))

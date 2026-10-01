@@ -72,7 +72,7 @@ struct SettingsRow: View {
                 }.frame(maxWidth:.infinity,alignment:.leading)
                 SignalIcon(glyph:.arrow,color:Signal.secondary).frame(width:18,height:18)
             }.frame(minHeight:62).contentShape(Rectangle())
-        }.buttonStyle(PressFeedback())
+        }.buttonStyle(PressFeedback()).accessibilityLabel(title).accessibilityHint(subtitle)
     }
 }
 struct DiagnosticsView: View {

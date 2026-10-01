@@ -208,6 +208,8 @@ final class ProxyEngine: @unchecked Sendable {
         private var closed = false
         private var clientEnded = false
         private var upstreamEnded = false
+        private var clientDrained = false
+        private var upstreamDrained = false
         private var tunnel = true
         private var deadline: DispatchWorkItem?
         init(engine: ProxyEngine, client: NWConnection, kind: ProxyKind, generation: Int) {
@@ -325,9 +327,12 @@ final class ProxyEngine: @unchecked Sendable {
                 self.armTimeout(120)
                 if ended {
                     destination.send(content: nil, contentContext: .finalMessage, isComplete: true,
-                        completion: .contentProcessed { [weak self] _ in
-                            guard let self else { return }
-                            if self.clientEnded && self.upstreamEnded || !fromClient && !self.tunnel { self.close() }
+                        completion: .contentProcessed { [weak self] error in
+                            guard let self, !self.closed else { return }
+                            guard error == nil else { self.close(); return }
+                            // EOF observed is not the same as the last write having drained.
+                            if fromClient { self.clientDrained = true } else { self.upstreamDrained = true }
+                            if self.clientDrained && self.upstreamDrained || !fromClient && !self.tunnel { self.close() }
                         })
                 } else if fromClient { self.receiveClient() } else { self.receiveUpstream() }
             }
