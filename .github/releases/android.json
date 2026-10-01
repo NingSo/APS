@@ -3,5 +3,5 @@
   "version_name": "1.0.0",
   "version_code": 2,
   "replaces_preview_tag": "android-v0.1.0-preview.1",
-  "bootstrap_signer": true
+  "bootstrap_signer": false
 }
