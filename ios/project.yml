@@ -24,7 +24,7 @@ targets:
     info:
       path: Support/Info.plist
       properties:
-        CFBundleDisplayName: APS / SIGNAL
+        CFBundleDisplayName: APS
         NSLocalNetworkUsageDescription: APS 需要在你确认可信的局域网中接收代理客户端连接。
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
