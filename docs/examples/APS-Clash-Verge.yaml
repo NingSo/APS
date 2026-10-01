@@ -1,0 +1,29 @@
+# Replace both 192.0.2.10 entries with the phone address shown in APS.
+mixed-port: 7897
+allow-lan: false
+mode: rule
+log-level: info
+tun:
+  enable: false
+
+proxies:
+  - name: APS-SOCKS5
+    type: socks5
+    server: 192.0.2.10
+    port: 1080
+    udp: false
+  - name: APS-HTTP
+    type: http
+    server: 192.0.2.10
+    port: 8080
+    tls: false
+
+proxy-groups:
+  - name: APS
+    type: select
+    proxies:
+      - APS-SOCKS5
+      - APS-HTTP
+
+rules:
+  - MATCH,APS
