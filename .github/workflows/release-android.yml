@@ -8,6 +8,7 @@ on:
       - '.github/workflows/release-android.yml'
       - 'scripts/publish_android.py'
       - 'scripts/test_android_release.py'
+      - 'scripts/check_source.py'
       - 'app/build.gradle.kts'
   workflow_dispatch:
 

@@ -55,7 +55,10 @@ def check() -> dict:
                 ast.parse(path.read_text())
             except SyntaxError as error:
                 failures.append(f'Python syntax: {path.relative_to(ROOT)}: {error}')
-        if path.suffix.lower() in {'.jks', '.keystore', '.pem', '.ttf', '.otf', '.woff', '.woff2'}:
+        # Allow only this inspected public X.509 recovery certificate, not arbitrary PEM/key files.
+        public_recovery = (path.relative_to(ROOT).as_posix() == '.github/releases/android-recovery-public.pem'
+                           and hashlib.sha256(path.read_bytes()).hexdigest() == '4b492de8066e97e7c60b3d18a97ec5c5c93e679a891951e2c480fd766caa7778')
+        if path.suffix.lower() in {'.jks', '.keystore', '.p12', '.pfx', '.pem', '.ttf', '.otf', '.woff', '.woff2'} and not public_recovery:
             failures.append(f'Do not distribute key or font files: {path.relative_to(ROOT)}')
     android_ns = '{http://schemas.android.com/apk/res/android}'
     manifest = ET.parse(ROOT / 'app/src/main/AndroidManifest.xml').getroot()
