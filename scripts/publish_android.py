@@ -1,118 +1,213 @@
 #!/usr/bin/env python3
-"""Promote an exact, successful CI APK. Never substitute source archives or unsigned APKs."""
+"""Sign a verified release build; publish it before removing the named preview."""
+import base64
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import secrets
 import subprocess
-import tempfile
-import zipfile
+import sys
+import xml.etree.ElementTree as ET
+
+REPO = 'NingSo/APS'
+OLD_PREVIEW = 'android-v0.1.0-preview.1'
+ROOT = Path(__file__).resolve().parents[1]
 
 
-def command(*args: str) -> str:
-    return subprocess.check_output(args, text=True).strip()
+def command(*args, env=None):
+    return subprocess.check_output(args, text=True, env=env).strip()
 
 
-def api(path: str) -> dict:
-    return json.loads(command('gh', 'api', path))
+def api(path):
+    return json.loads(command('gh', 'api', f'repos/{REPO}/{path}'))
 
 
-def main() -> None:
-    repo = os.environ['GH_REPO']
-    assert repo == 'NingSo/APS', 'Unexpected publishing repository'
-    config = json.loads(Path('.github/releases/android.json').read_text())
-    tag, source, run_id = config['tag'], config['source_sha'], config['run_id']
-    assert re.fullmatch(r'android-v[0-9]+\.[0-9]+\.[0-9]+-preview\.[0-9]+', tag)
-    assert re.fullmatch(r'[0-9a-f]{40}', source)
-    assert isinstance(run_id, int) and run_id > 0
-    run = api(f'repos/{repo}/actions/runs/{run_id}')
-    assert run['status'] == 'completed' and run['conclusion'] == 'success'
-    assert run['head_sha'] == source and run['head_branch'] == 'main'
-    assert run['event'] in ('push', 'workflow_dispatch')
-    assert run['path'] == '.github/workflows/android.yml'
-    assert run['head_repository']['full_name'] == repo
-    # A workflow/docs-only publication commit is fine; publishing stale app code is not.
-    subprocess.run(['git', 'diff', '--exit-code', source, 'HEAD', '--', 'app', 'proxycore',
-                    'gradle', 'gradle.properties', 'build.gradle.kts', 'settings.gradle.kts',
-                    'gradlew', 'gradlew.bat', 'scripts/bootstrap_gradle.py'], check=True)
-    artifacts = api(f'repos/{repo}/actions/runs/{run_id}/artifacts')['artifacts']
-    matches = [a for a in artifacts if a['name'] == config['artifact_name'] and not a['expired']]
-    assert len(matches) == 1, 'Expected exactly one unexpired tested APK artifact'
-    artifact = matches[0]
-    expected_digest = 'sha256:' + config['artifact_sha256']
-    assert artifact['digest'] == expected_digest, 'Artifact digest differs from release manifest'
-    out = Path('release-dist'); out.mkdir(exist_ok=True)
-    with tempfile.TemporaryDirectory() as tmp:
-        archive = Path(tmp) / 'artifact.zip'
-        with archive.open('wb') as target:
-            subprocess.run(['gh', 'api', f'repos/{repo}/actions/artifacts/{artifact["id"]}/zip'], stdout=target, check=True)
-        assert hashlib.sha256(archive.read_bytes()).hexdigest() == config['artifact_sha256']
-        with zipfile.ZipFile(archive) as zipped:
-            apks = [entry for entry in zipped.infolist() if entry.filename.endswith('.apk') and not entry.is_dir()]
-            assert len(apks) == 1, 'Expected exactly one APK, not a split bundle'
-            apk = out / f'APS-{tag}-debug.apk'
-            apk.write_bytes(zipped.read(apks[0]))
-    tools = Path(os.environ['ANDROID_HOME']) / 'build-tools' / '36.0.0'
+def release(tag):
+    result = subprocess.run(['gh', 'api', f'repos/{REPO}/releases/tags/{tag}'], capture_output=True, text=True)
+    if result.returncode == 0:
+        return json.loads(result.stdout)
+    if 'HTTP 404' not in result.stderr:
+        raise RuntimeError('Unable to read release metadata: ' + result.stderr)
+    return None
+
+
+def config():
+    value = json.loads((ROOT / '.github/releases/android.json').read_text())
+    if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', value['version_name']):
+        raise ValueError('Expected a stable version number')
+    if value['tag'] != 'android-v' + value['version_name']:
+        raise ValueError('Tag and application version must agree')
+    if not isinstance(value['version_code'], int) or value['version_code'] < 2:
+        raise ValueError('Increment the versionCode for the release')
+    if value['replaces_preview_tag'] != OLD_PREVIEW:
+        raise ValueError('Deletion is authorized only for the explicitly named Android preview')
+    return value
+
+
+def validate_apk(badging, signature, version, code):
+    line = badging.splitlines()[0]
+    expected = {'name': 'com.ningso.aps', 'versionName': version, 'versionCode': str(code)}
+    fields = dict(re.findall(r"(\w+)='([^']*)'", line))
+    if not all(fields.get(key) == value for key, value in expected.items()):
+        raise ValueError('APK package/version does not match the official release')
+    if 'application-debuggable' in badging or 'Android Debug' in signature:
+        raise ValueError('Never publish a debug build or debug certificate as a formal release')
+    match = re.search(r'Signer #1 certificate SHA-256 digest: ([0-9a-fA-F]{64})', signature)
+    if not match or 'Verified using v2 scheme (APK Signature Scheme v2): true' not in signature:
+        raise ValueError('Expected a valid v2 APK signature with a certificate fingerprint')
+    return match.group(1).lower()
+
+
+def prepare():
+    cfg = config()
+    if release(cfg['tag']) is not None:
+        raise RuntimeError('Release/tag already has a release record; do not regenerate its signing identity or overwrite assets')
+    private = Path(os.environ['RUNNER_TEMP']) / 'aps-android-signing'
+    private.mkdir(mode=0o700)
+    names = ['APS_ANDROID_KEYSTORE_B64', 'APS_ANDROID_STORE_PASSWORD', 'APS_ANDROID_KEY_ALIAS', 'APS_ANDROID_KEY_PASSWORD']
+    supplied = [os.environ.get(name, '') for name in names]
+    if any(supplied) and not all(supplied):
+        raise RuntimeError('All four Android signing secrets must be configured together')
+    generated = not all(supplied)
+    if generated:
+        if not cfg.get('bootstrap_signer') or cfg['tag'] != 'android-v1.0.0':
+            raise RuntimeError('Configure the saved signing key in Actions secrets; automatic key rotation is forbidden')
+        if (ROOT / '.github/releases/android-signing.sha256').exists():
+            raise RuntimeError('A signing identity is already pinned; restore it instead of generating another')
+        supplied = ['', secrets.token_urlsafe(36), 'aps-release', '']
+        supplied[3] = supplied[1]
+    for secret in (supplied[1], supplied[3]):
+        print('::add-mask::' + secret, flush=True)
+    keyfile = private / 'aps-release.p12'
+    env = {**os.environ, 'APS_SIGN_STORE_PASSWORD': supplied[1], 'APS_SIGN_KEY_PASSWORD': supplied[3]}
+    if generated:
+        command('keytool', '-genkeypair', '-noprompt', '-storetype', 'PKCS12', '-keystore', str(keyfile),
+                '-alias', supplied[2], '-keyalg', 'RSA', '-keysize', '4096', '-sigalg', 'SHA256withRSA',
+                '-validity', '36500', '-dname', 'CN=APS Android Release',
+                '-storepass:env', 'APS_SIGN_STORE_PASSWORD', '-keypass:env', 'APS_SIGN_KEY_PASSWORD', env=env)
+        supplied[0] = base64.b64encode(keyfile.read_bytes()).decode('ascii')
+    else:
+        keyfile.write_bytes(base64.b64decode(supplied[0], validate=True))
+    keyfile.chmod(0o600)
+    material = dict(zip(names, supplied))
+    material['generated_for_first_release'] = generated
+    material_path = private / 'signing.json'
+    material_path.write_text(json.dumps(material)); material_path.chmod(0o600)
+    if generated:
+        # The private recovery key stays with the owner, never in this public repository/runner.
+        # Only authenticated ciphertext is retained in the Actions artifact, not Release assets.
+        sealed = ROOT / 'signing-backup'
+        sealed.mkdir()
+        command('openssl', 'cms', '-encrypt', '-binary', '-aes-256-gcm', '-in', str(material_path),
+                '-outform', 'DER', '-out', str(sealed / 'APS-Android-signing-backup.cms'),
+                str(ROOT / '.github/releases/android-recovery-public.pem'))
+        print('Generated first release signing identity; encrypted backup ready for retention.')
+    else:
+        print('Using existing repository signing secrets; no signing identity was generated.')
+
+
+def publish():
+    cfg = config(); version = cfg['version_name']; tag = cfg['tag']
+    private = Path(os.environ['RUNNER_TEMP']) / 'aps-android-signing'
+    material = json.loads((private / 'signing.json').read_text())
+    for name in ('APS_ANDROID_STORE_PASSWORD', 'APS_ANDROID_KEY_PASSWORD'):
+        print('::add-mask::' + material[name], flush=True)
+    tools = Path(os.environ['ANDROID_HOME']) / 'build-tools/36.0.0'
+    source = command('git', 'rev-parse', 'HEAD')
+    unit = {'tests': 0, 'failures': 0, 'errors': 0, 'skipped': 0}
+    for module in ('app', 'proxycore'):
+        reports = list((ROOT / module / 'build/test-results/testReleaseUnitTest').glob('TEST-*.xml'))
+        if not reports:
+            raise RuntimeError('Missing executed release-unit-test reports for ' + module)
+        for report in reports:
+            suite = ET.parse(report).getroot()
+            for key in unit:
+                unit[key] += int(suite.attrib.get(key, 0))
+    if not unit['tests'] or unit['failures'] or unit['errors']:
+        raise RuntimeError('Release unit test verification failed')
+    out = ROOT / 'release-dist'; out.mkdir(exist_ok=True)
+    unsigned = ROOT / 'app/build/outputs/apk/release/app-release-unsigned.apk'
+    apk = out / f'APS-Android-{version}.apk'
+    env = {**os.environ, 'APS_SIGN_STORE_PASSWORD': material['APS_ANDROID_STORE_PASSWORD'],
+           'APS_SIGN_KEY_PASSWORD': material['APS_ANDROID_KEY_PASSWORD']}
+    command(str(tools / 'apksigner'), 'sign', '--ks', str(private / 'aps-release.p12'),
+            '--ks-key-alias', material['APS_ANDROID_KEY_ALIAS'], '--ks-pass', 'env:APS_SIGN_STORE_PASSWORD',
+            '--key-pass', 'env:APS_SIGN_KEY_PASSWORD', '--v4-signing-enabled', 'false', '--out', str(apk), str(unsigned), env=env)
     signature = command(str(tools / 'apksigner'), 'verify', '--verbose', '--print-certs', str(apk))
     badging = command(str(tools / 'aapt'), 'dump', 'badging', str(apk))
-    package_line = badging.splitlines()[0]
-    assert "name='com.ningso.aps.debug'" in package_line
-    assert "versionName='0.1.0-debug'" in package_line
-    assert 'application-debuggable' in badging, 'Preview promotion expects the debug variant'
+    fingerprint = validate_apk(badging, signature, version, cfg['version_code'])
+    pinned = ROOT / '.github/releases/android-signing.sha256'
+    if pinned.exists() and fingerprint != pinned.read_text().strip():
+        raise RuntimeError('Signing certificate differs from the established release identity')
+    command(str(tools / 'zipalign'), '-c', '-P', '16', '4', str(apk))
     (out / 'APK-SIGNATURE.txt').write_text(signature + '\n')
-    provenance = {'source_sha': source, 'ci_run': run['html_url'], 'artifact_id': artifact['id'],
-                  'artifact_sha256': config['artifact_sha256'], 'package': package_line,
-                  'variant': 'debug', 'installable_on': 'Android 8.0 / API 26 or newer',
-                  'release_tag': tag}
-    (out / 'BUILD-PROVENANCE.json').write_text(json.dumps(provenance, ensure_ascii=False, indent=2) + '\n')
-    note = f'''# APS Android — 可安装测试版 / Installable preview
+    run_url = f'https://github.com/{REPO}/actions/runs/' + os.environ['GITHUB_RUN_ID']
+    apk_hash = hashlib.sha256(apk.read_bytes()).hexdigest()
+    provenance = {'source_sha': source, 'ci_run': run_url, 'release_tag': tag,
+                  'version_name': version, 'version_code': cfg['version_code'], 'application_id': 'com.ningso.aps',
+                  'variant': 'release', 'debuggable': False, 'apk_sha256': apk_hash,
+                  'signer_sha256': fingerprint, 'unit_tests': unit, 'owner_functional_acceptance': True}
+    (out / 'BUILD-PROVENANCE.json').write_text(json.dumps(provenance, indent=2) + '\n')
+    note = f'''# APS Android {version} — 正式版 / Stable release
 
-下载附件 `{apk.name}` 安装。Source code ZIP/TAR 不是安装包。
-Download the APK asset, not the automatically generated source archives.
+下载 `{apk.name}` 安装；Source code ZIP/TAR 是源码，不是安装包。
+Download the APK asset, not the automatic source archives.
 
+- 应用版本 / Version: `{version}` (versionCode `{cfg['version_code']}`)
+- 正式包名 / Application ID: `com.ningso.aps`
+- 构建 / Build: Release, not debuggable, RSA release signing certificate (not Android Debug).
+- 系统 / Requires: Android 8.0+ (API 26).
 - 源码 / Source: `{source}`
-- 构建与测试 / CI: {run['html_url']}
-- 应用版本 / App version: `0.1.0-debug` (`versionCode=1`)
-- 包名 / Application ID: `com.ningso.aps.debug`
-- 系统 / Android: 8.0+ (API 26)
-- 本附件直接来自上述已通过单元测试、Lint 和编译的 CI，未重新签名或修改。
-  Exact tested CI artifact; not rebuilt or re-signed during publication.
+- 构建与校验 / Build and checks: {run_url}
+- 发布证书 SHA-256 / Signing certificate: `{fingerprint}`
 
-## 安装与更新 / Installation and updates
-允许下载此 APK 的浏览器或文件管理器“安装未知应用”，然后打开 APK。
-This is a DEBUG-signed preview, not a production-key release. CI debug keys may differ
-between runs. An existing install signed with a different key cannot be upgraded in place;
-back up any needed data before deciding whether to uninstall it. We do not uninstall apps automatically.
-这是 Debug 签名测试版，不是正式签名版本。不同 CI 构建的签名可能不同；签名不一致时不能直接覆盖安装。
-需要保留的数据请先备份，再自行决定是否卸载旧测试版。正式长期更新需配置并安全保管固定发布密钥。
+功能和界面沿用项目所有者已验收的 Android 版本；本次只调整版本与发布打包。
+The owner has accepted the Android functionality. This change updates versioning and distribution only.
+Release unit tests ({unit['tests']}), Lint, APK signing and ZIP alignment checks passed.
+本次自动化校验不代表重新执行了真机验收。
 
-## 使用边界 / Security
-只在可信局域网启动。HTTP/HTTPS CONNECT、SOCKS5 TCP CONNECT；无密码鉴权，不支持 UDP/BIND。
-Trusted LAN only. No authentication; do not expose proxy ports to the public internet.
+## 安装与升级 / Installation and updates
+允许下载此文件的浏览器或文件管理器安装应用，打开 APK 完成安装。
+正式版包名不含 `.debug`，可与旧测试版并存，不会覆盖或删除旧测试版的数据。
+The stable app can coexist with `com.ningso.aps.debug`; its settings do not migrate automatically.
+请勿同时启动两份应用占用相同代理端口。后续正式版必须使用同一发布密钥签名。
+Do not start both copies on the same ports. Future stable updates must retain the signing identity.
 
-本 Release 仅含 Android APK，不包含 iPhone 可安装 IPA。
-This release contains Android only; a simulator ZIP is not an iPhone installer.
+仅在可信局域网开启；HTTP/HTTPS CONNECT、SOCKS5 TCP CONNECT，无密码鉴权，不支持 UDP/BIND。
+Trusted LAN only. No authentication; never expose the listening ports directly to the internet.
+This is an Android release. The iOS release is unchanged.
 '''
     (out / 'INSTALL.md').write_text(note)
-    checksums = ''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n'
-                        for p in sorted(out.iterdir()) if p.is_file() and p.name != 'SHA256SUMS.txt')
-    (out / 'SHA256SUMS.txt').write_text(checksums)
-    # Published assets are immutable here: never use --clobber or move existing tags.
-    probe = subprocess.run(['gh', 'release', 'view', tag, '--json', 'isDraft'], capture_output=True, text=True)
-    if probe.returncode == 0:
-        assert json.loads(probe.stdout)['isDraft'], 'Release already published; use a new preview number'
-    else:
-        command('gh', 'release', 'create', tag, '--target', source, '--draft', '--prerelease',
-                '--title', 'APS Android 0.1.0 — 可安装测试版', '--notes-file', str(out / 'INSTALL.md'))
-    assert json.loads(command('gh', 'release', 'view', tag, '--json', 'targetCommitish'))['targetCommitish'] == source
-    existing = json.loads(command('gh', 'release', 'view', tag, '--json', 'assets'))['assets']
-    assert not existing, 'Draft already has assets; inspect it rather than overwrite'
-    command('gh', 'release', 'upload', tag, *[str(p) for p in sorted(out.iterdir()) if p.is_file()])
-    command('gh', 'release', 'edit', tag, '--draft=false', '--prerelease', '--latest=false')
-    assert command('gh', 'api', f'repos/{repo}/git/ref/tags/{tag}', '--jq', '.object.sha') == source
-    print(command('gh', 'release', 'view', tag, '--json', 'url,assets'))
+    payloads = [apk, out / 'APK-SIGNATURE.txt', out / 'BUILD-PROVENANCE.json', out / 'INSTALL.md']
+    (out / 'SHA256SUMS.txt').write_text(''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in payloads))
+    payloads.append(out / 'SHA256SUMS.txt')
+    if release(tag) is not None:
+        raise RuntimeError('Refusing to overwrite an existing release')
+    command('gh', 'release', 'create', tag, '--target', source, '--draft',
+            '--title', f'APS Android {version} — 正式版', '--notes-file', str(out / 'INSTALL.md'))
+    command('gh', 'release', 'upload', tag, *[str(p) for p in payloads])
+    command('gh', 'release', 'edit', tag, '--draft=false', '--prerelease=false', '--latest')
+    published = release(tag)
+    if published['draft'] or published['prerelease']:
+        raise RuntimeError('New release is not publicly stable')
+    remote_apk = [asset for asset in published['assets'] if asset['name'] == apk.name]
+    if len(remote_apk) != 1 or remote_apk[0]['digest'] != 'sha256:' + apk_hash:
+        raise RuntimeError('Published APK integrity verification failed; retaining preview')
+    if api('git/ref/tags/' + tag)['object']['sha'] != source:
+        raise RuntimeError('Release tag does not point at the built source')
+    previous = release(OLD_PREVIEW)
+    if previous:
+        if previous['id'] != 400601016 or not previous['prerelease']:
+            raise RuntimeError('Preview changed unexpectedly; will not delete it')
+        command('gh', 'release', 'delete', OLD_PREVIEW, '--yes')
+    print(json.dumps({'release': published['html_url'], 'apk': remote_apk[0]['browser_download_url'],
+                      'preview_deleted': release(OLD_PREVIEW) is None, **provenance}, indent=2))
 
 
 if __name__ == '__main__':
-    main()
+    os.chdir(ROOT)
+    if os.environ.get('GH_REPO') != REPO or os.environ.get('GITHUB_REF') != 'refs/heads/main':
+        raise SystemExit('Only the owned repository main branch may publish')
+    {'prepare': prepare, 'publish': publish}[sys.argv[1]]()

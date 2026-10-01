@@ -1,11 +1,14 @@
-name: Publish installable Android APK
+name: Publish Android stable APK
 
 on:
   push:
     branches: [main]
     paths:
-      - '.github/releases/android.json'
+      - '.github/releases/**'
+      - '.github/workflows/release-android.yml'
       - 'scripts/publish_android.py'
+      - 'scripts/test_android_release.py'
+      - 'app/build.gradle.kts'
   workflow_dispatch:
 
 permissions:
@@ -18,31 +21,67 @@ concurrency:
 
 jobs:
   publish:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release-android]'))
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Check source integrity
-        run: python3 scripts/check_source.py
+      - name: Check source and release validation guards
+        run: |
+          python3 scripts/check_source.py
+          python3 -m unittest discover -s scripts -p test_android_release.py -v
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
-      - name: Install APK inspection tools
-        run: sdkmanager 'build-tools;36.0.0'
-      - name: Verify tested artifact and publish release
+      - name: Install build platform
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Test, lint and compile the Release variant
+        run: |
+          chmod +x gradlew
+          ./gradlew :proxycore:testReleaseUnitTest :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease --stacktrace
+      - name: Prepare release signing identity and encrypted recovery backup
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: python3 scripts/publish_android.py
-      - name: Retain release provenance
+          APS_ANDROID_KEYSTORE_B64: ${{ secrets.APS_ANDROID_KEYSTORE_B64 }}
+          APS_ANDROID_STORE_PASSWORD: ${{ secrets.APS_ANDROID_STORE_PASSWORD }}
+          APS_ANDROID_KEY_ALIAS: ${{ secrets.APS_ANDROID_KEY_ALIAS }}
+          APS_ANDROID_KEY_PASSWORD: ${{ secrets.APS_ANDROID_KEY_PASSWORD }}
+        run: python3 scripts/publish_android.py prepare
+      - name: Retain encrypted recovery backup before publishing
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-signing-recovery-encrypted
+          path: signing-backup/*.cms
+          if-no-files-found: ignore
+          retention-days: 90
+      - name: Sign, verify and publish stable APK; remove named preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 scripts/publish_android.py publish
+      - name: Remove private signing material from runner
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/aps-android-signing"
+      - name: Retain public release evidence and test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: android-release-provenance
-          path: release-dist/
+          name: android-stable-release-evidence
+          path: |
+            release-dist/
+            app/build/reports/
+            app/build/test-results/
+            proxycore/build/reports/
+            proxycore/build/test-results/
           if-no-files-found: warn
           retention-days: 14

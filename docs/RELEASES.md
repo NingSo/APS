@@ -1,11 +1,13 @@
-# Installer publication
+# Android stable releases
 
-Installable Android packages belong in GitHub Releases assets, not only Actions artifacts or source ZIPs.
+The owner has accepted the Android functionality. Android 1.0.0 is distributed as `APS-Android-1.0.0.apk`, tag `android-v1.0.0`, package `com.ningso.aps`, versionCode 2, minimum Android 8.0. It is a non-debuggable Release build, not a renamed debug APK. The old `android-v0.1.0-preview.1` Release is removed only after the new stable APK is published and its digest verified; its historical Git tag is retained. The iOS branch and release are unaffected.
 
-`Publish installable Android APK` reads `.github/releases/android.json`. It verifies a successful main-branch CI run, source SHA, artifact SHA-256, APK signature and package identity before publishing the exact APK, signature summary, installation notes and SHA256SUMS. The release stays a draft until all assets are uploaded. Existing tags and published assets are never replaced.
+`Publish Android stable APK` checks source integrity, runs release-validation tests, compiles/tests/lints the Release variant, signs the APK, checks package/version/signature/alignment, uploads a draft and then publishes it as Latest. A main-branch commit must explicitly contain `[release-android]`, or use workflow_dispatch. Update `app/build.gradle.kts` and `.github/releases/android.json` together and increment versionCode for future updates. Existing published assets are never overwritten.
 
-The first tag is `android-v0.1.0-preview.1`, sourced from the successful CI of the latest Android code `e289d3c`. Its internal version is `0.1.0-debug`, package ID `com.ningso.aps.debug`, minimum Android 8.0. It is an installable DEBUG-signed preview, not a production-key release. A differently signed existing install cannot be upgraded in place; uninstalling deletes app data, so back up anything needed first.
+## Signing identity
 
-For subsequent releases, wait for Android CI success and update tag, source_sha, run_id, artifact_name and artifact_sha256 in the manifest on main. The workflow can also be dispatched manually. Stale source, failing CI, expired artifacts and verification mismatches block publication. Production updates require a stable release keystore; never commit signing keys.
+The first stable release can initialize an RSA-4096 signing identity only when `bootstrap_signer` is true, the tag is `android-v1.0.0`, no signing fingerprint is pinned, and that release does not exist. The keystore/passwords are encrypted with OpenSSL CMS AES-256-GCM to the owner's recovery certificate before publication. Only ciphertext is uploaded to the recovery Actions artifact; private keys/passwords never enter Git or public Release assets. The recovery private key is delivered privately to the owner. The public certificate is not an APK signing key.
 
-The ios branch develops and publishes independently. An iPhone needs a device-SDK IPA and valid signing/distribution conditions. Simulator ZIPs cannot run on iPhone. Unsigned IPAs must be explicitly labelled as requiring re-signing, never as tap-to-install packages.
+After publication, disable bootstrap and pin the release certificate fingerprint in `.github/releases/android-signing.sha256`. The owner must keep the decrypted signing backup and configure these Actions secrets for subsequent versions: `APS_ANDROID_KEYSTORE_B64`, `APS_ANDROID_STORE_PASSWORD`, `APS_ANDROID_KEY_ALIAS`, `APS_ANDROID_KEY_PASSWORD`. Never generate a different key to work around missing credentials. The connected integration cannot write repository secrets, so restoring these values is an owner-side step.
+
+The stable application can coexist with `com.ningso.aps.debug`; it does not migrate that app's data. Do not run both apps on identical listening ports. Future stable updates use the same signing identity. Download the APK asset, not Source code ZIP/TAR.
