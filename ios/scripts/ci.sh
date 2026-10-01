@@ -29,17 +29,27 @@ Path('ios/build/selected-device.json').write_text(json.dumps({'runtime':version,
 print(udid)
 PY
 )"
-# bootstatus waits for readiness; do not choose a runtime newer than the active SDK.
 xcrun simctl boot "$DEVICE" 2>/dev/null || true
 xcrun simctl bootstatus "$DEVICE" -b
 xcrun simctl io "$DEVICE" recordVideo ios/build/ui-tests.mov > ios/build/video.log 2>&1 &
 VIDEO_PID=$!
 cleanup() { kill -INT "$VIDEO_PID" 2>/dev/null || true; wait "$VIDEO_PID" 2>/dev/null || true; }
 trap cleanup EXIT
+set +e
 xcodebuild -project ios/APS.xcodeproj -scheme APS \
   -destination "platform=iOS Simulator,id=$DEVICE" \
   -derivedDataPath ios/build/DerivedData -resultBundlePath ios/build/Tests.xcresult \
   -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test 2>&1 | tee ios/build/xcodebuild.log
+TEST_STATUS=${PIPESTATUS[0]}
+set -e
 cleanup
 trap - EXIT
+# Keep failure screenshots as well; never change the original test exit status.
 xcrun xcresulttool export attachments --path ios/build/Tests.xcresult --output-path ios/build/screenshots || true
+xcrun xcresulttool get test-results summary --path ios/build/Tests.xcresult > ios/build/test-summary.json || true
+if [ "$TEST_STATUS" -eq 0 ]; then
+  # Preserve executable permissions and bundle structure inside the Actions artifact.
+  ditto -c -k --sequesterRsrc --keepParent \
+    ios/build/DerivedData/Build/Products/Debug-iphonesimulator/APS.app ios/build/aps-ios-simulator.zip
+fi
+exit "$TEST_STATUS"

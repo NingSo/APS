@@ -192,9 +192,13 @@ final class AppStore: ObservableObject {
             session.phase = .running; session.configuration = preferences; session.elapsed = 754
             session.active = 6; session.total = 134; session.received = 147849216; session.sent = 15099494
             session.receiveRate = 1280000; session.sendRate = 124000
-            session.samples = (0..<60).map {
-                TrafficSample(uptime: Double($0), received: Int64($0 % 13 * 74000 + 200000), sent: Int64($0 % 7 * 9000 + 14000))
+            var samples: [TrafficSample] = []
+            for index in 0..<60 {
+                let received: Int64 = Int64(index % 13) * 74000 + 200000
+                let sent: Int64 = Int64(index % 7) * 9000 + 14000
+                samples.append(TrafficSample(uptime: TimeInterval(index), received: received, sent: sent))
             }
+            session.samples = samples
             session.log(.info, "本地监听自检通过 · HTTP / SOCKS5")
         } else if name == "failed" {
             session.phase = .failed; session.error = "HTTP 端口不可用"; session.log(.error, "HTTP 端口不可用")

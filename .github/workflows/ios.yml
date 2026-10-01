@@ -39,6 +39,8 @@ jobs:
             ios/build/screenshots/
             ios/build/xcodebuild.log
             ios/build/devices.json
+            ios/build/selected-device.json
+            ios/build/test-summary.json
             ios/build/ui-tests.mov
             ios/build/video.log
           if-no-files-found: warn
@@ -47,6 +49,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: aps-ios-simulator
-          path: ios/build/DerivedData/Build/Products/Debug-iphonesimulator/APS.app
+          path: ios/build/aps-ios-simulator.zip
           if-no-files-found: error
           retention-days: 14
