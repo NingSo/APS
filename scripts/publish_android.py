@@ -105,11 +105,12 @@ This release contains Android only; a simulator ZIP is not an iPhone installer.
     else:
         command('gh', 'release', 'create', tag, '--target', source, '--draft', '--prerelease',
                 '--title', 'APS Android 0.1.0 — 可安装测试版', '--notes-file', str(out / 'INSTALL.md'))
-    assert command('gh', 'api', f'repos/{repo}/git/ref/tags/{tag}', '--jq', '.object.sha') == source
+    assert json.loads(command('gh', 'release', 'view', tag, '--json', 'targetCommitish'))['targetCommitish'] == source
     existing = json.loads(command('gh', 'release', 'view', tag, '--json', 'assets'))['assets']
     assert not existing, 'Draft already has assets; inspect it rather than overwrite'
     command('gh', 'release', 'upload', tag, *[str(p) for p in sorted(out.iterdir()) if p.is_file()])
     command('gh', 'release', 'edit', tag, '--draft=false', '--prerelease', '--latest=false')
+    assert command('gh', 'api', f'repos/{repo}/git/ref/tags/{tag}', '--jq', '.object.sha') == source
     print(command('gh', 'release', 'view', tag, '--json', 'url,assets'))
 
 
